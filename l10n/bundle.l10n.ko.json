@@ -85,5 +85,7 @@
   "Startup command…": "시작 명령…",
   "Set shell type and startup command per cell. Use All tab for global defaults, or individual tabs for per-cell overrides.": "셀별 쉘 종류 및 시작 명령을 설정합니다. 전체 탭은 기본값, 개별 탭은 셀별 오버라이드입니다.",
   "Apply": "적용",
-  "Copy (Plain)": "복사 (서식 제거)"
+  "Copy (Plain)": "복사 (서식 제거)",
+  "Manage multiple grid tabs — each tab keeps its own labels, cell settings, merges, and startup steps. Click a tab to focus it, right-click or double-click to rename. + opens a new empty tab, ⧉ duplicates the active tab, × closes a tab (last tab can't be closed).": "여러 그리드 탭을 관리합니다. 각 탭은 라벨, 셀 설정, 병합, 시작 명령을 독립적으로 가집니다. 탭을 클릭해서 포커스, 우클릭 또는 더블클릭으로 이름 변경. + 새 빈 탭, ⧉ 활성 탭 복제, × 탭 닫기 (마지막 탭은 닫을 수 없음).",
+  "Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.": "Claude Desktop에 Terminal Grid MCP 서버를 등록하여 터미널 그리드를 제어할 수 있게 합니다. 서버 설정을 Claude Desktop 설정 파일에 기록합니다."
 }

@@ -85,5 +85,7 @@
   "Startup command…": "启动命令…",
   "Set shell type and startup command per cell. Use All tab for global defaults, or individual tabs for per-cell overrides.": "按单元格设置 Shell 类型和启动命令。全部标签为全局默认，单独标签为单元格覆盖。",
   "Apply": "应用",
-  "Copy (Plain)": "复制（纯文本）"
+  "Copy (Plain)": "复制（纯文本）",
+  "Manage multiple grid tabs — each tab keeps its own labels, cell settings, merges, and startup steps. Click a tab to focus it, right-click or double-click to rename. + opens a new empty tab, ⧉ duplicates the active tab, × closes a tab (last tab can't be closed).": "管理多个网格标签 — 每个标签拥有独立的标签名、单元格设置、合并区域和启动命令。点击标签聚焦,右键或双击重命名。+ 新建空标签,⧉ 复制活动标签,× 关闭标签(最后一个标签无法关闭)。",
+  "Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.": "在 Claude Desktop 中注册 Terminal Grid MCP 服务器,以便控制终端网格。会将服务器配置写入 Claude Desktop 配置文件。"
 }

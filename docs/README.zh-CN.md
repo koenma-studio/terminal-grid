@@ -134,6 +134,12 @@ await vscode.commands.executeCommand('terminalGrid.sendToCell', 0, 'echo hello\r
 const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 10);
 ```
 
+## 安全
+
+MCP 桥接仅监听 `127.0.0.1` (默认端口 `7890`,可通过 `terminalGrid.apiPort` 修改)。不接受远程连接。
+
+在 Claude Desktop 中注册 MCP 服务器时,会写入指向打包的 `mcp-server.js` 的 `terminal-grid` 条目。卸载前请运行 **Terminal Grid: 从 Claude Desktop 取消注册 MCP** 进行清理。引用脚本不存在的过时注册(如旧版本残留)会在下次扩展加载时自动清除。
+
 ## 要求
 
 - VS Code 1.80.0+

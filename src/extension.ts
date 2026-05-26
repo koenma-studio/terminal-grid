@@ -1,14 +1,70 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
+import * as os from "os";
 import { SidebarProvider } from "./SidebarProvider";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { McpBridge } from "./McpBridge";
+import { tabState } from "./TabStateStore";
+import type { CellOverride, MergeRegion } from "./TabStateStore";
+import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
+import { cellIdMapper } from "./CellIdMapper";
 
 let mcpBridge: McpBridge | undefined;
 let mcpStatusItem: vscode.StatusBarItem | undefined;
 
-export function activate(context: vscode.ExtensionContext): void {
-  // Auto-load preset for current workspace
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // Initialize per-tab state store + run one-shot migration of legacy keys → _0 namespace
+  tabState.init(context);
+  await tabState.migrateOnce();
+
+  // MCP hygiene: remove stale Claude Desktop registrations whose mcp-server.js no longer
+  // exists (e.g., previous extension version was uninstalled).
+  SidebarProvider.autoCleanupStaleRegistration();
+
+  // Bridge: legacy single-panel `lastGrid` → multi-tab `lastTabs[0]`.
+  // Without this, returning users hit the deserialize fallback path (which is the zombie-tab source).
+  const existingLastTabs = context.globalState.get<unknown[]>("lastTabs", []);
+  if (existingLastTabs.length === 0) {
+    const legacyLastGrid = context.globalState.get<{ rows: number; cols: number }>("lastGrid");
+    if (legacyLastGrid && legacyLastGrid.rows > 0 && legacyLastGrid.cols > 0) {
+      const cellCount = legacyLastGrid.rows * legacyLastGrid.cols;
+      const cellIds: number[] = [];
+      for (let i = 0; i < cellCount; i++) cellIds.push(i);
+      await context.globalState.update("lastTabs", [{
+        tabId: 0, rows: legacyLastGrid.rows, cols: legacyLastGrid.cols, cellIds,
+      }]);
+      // Advance counters past the bridged tab so new allocations don't collide
+      const curNextTab = context.globalState.get<number>("nextTabId", 0);
+      if (curNextTab < 1) await context.globalState.update("nextTabId", 1);
+      const curNextCell = context.globalState.get<number>("nextGlobalCellId", 0);
+      if (curNextCell < cellCount) await context.globalState.update("nextGlobalCellId", cellCount);
+    }
+  }
+
+  // Dev auto-reload: watch signal file touched by scripts/build.js
+  try {
+    const reloadDir = path.join(os.homedir(), ".terminal-grid");
+    const reloadFile = path.join(reloadDir, "reload-signal");
+    fs.mkdirSync(reloadDir, { recursive: true });
+    let lastMtime = fs.existsSync(reloadFile) ? fs.statSync(reloadFile).mtimeMs : 0;
+    const watcher = fs.watch(reloadDir, (_event, filename) => {
+      if (filename !== "reload-signal") return;
+      try {
+        const mtime = fs.statSync(reloadFile).mtimeMs;
+        if (mtime > lastMtime) {
+          lastMtime = mtime;
+          vscode.commands.executeCommand("workbench.action.reloadWindow");
+        }
+      } catch { /* file may be momentarily missing */ }
+    });
+    context.subscriptions.push({ dispose: () => watcher.close() });
+  } catch { /* watch may fail in restricted environments */ }
+
+  // Auto-load preset for current workspace.
+  // Multi-tab deferred pattern: allocate the next tabId, write per-tab preset state to that
+  // namespace, then auto-open the grid with that tabId so it inherits the preset on spawn.
+  // Skipped when lastTabs has entries (user's restored panels take precedence).
   const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (workspacePath) {
     const mapping = context.globalState.get<Record<string, string>>("projectPresets", {});
@@ -22,38 +78,47 @@ export function activate(context: vscode.ExtensionContext): void {
         colorTheme?: string; shellType?: string; defaultCommand?: string;
         defaultSteps?: {type: string; input?: string; ms?: number}[];
         cellStepsOverrides?: Record<number, Record<string, unknown>>;
+        mergedRegions?: MergeRegion[];
       }>>("presets", []);
       const preset = presets.find((p) => p.name === presetName);
       if (preset) {
+        // 1. Global config (workspace settings, not tab-scoped)
         const cfg = vscode.workspace.getConfiguration("terminalGrid");
-        cfg.update("defaultRows", preset.rows, vscode.ConfigurationTarget.Global);
-        cfg.update("defaultCols", preset.cols, vscode.ConfigurationTarget.Global);
-        cfg.update("zoomPercent", preset.zoomPercent, vscode.ConfigurationTarget.Global);
-        cfg.update("fontFamily", preset.fontFamily, vscode.ConfigurationTarget.Global);
-        cfg.update("backgroundColor", preset.bgColor, vscode.ConfigurationTarget.Global);
-        cfg.update("foregroundColor", preset.fgColor, vscode.ConfigurationTarget.Global);
-        cfg.update("colorTheme", preset.colorTheme || "", vscode.ConfigurationTarget.Global);
-        cfg.update("shellType", preset.shellType || "", vscode.ConfigurationTarget.Global);
-        context.globalState.update("startupCommands", preset.startupCommands || []);
-        context.globalState.update("cellLabels", preset.cellLabels || []);
-        context.globalState.update("defaultCommand", preset.defaultCommand || "");
-        // Restore sequential startup steps
-        if (preset.defaultSteps) {
-          context.globalState.update("defaultSteps", preset.defaultSteps);
-        } else if (preset.defaultCommand) {
-          context.globalState.update("defaultSteps", [{ type: "command", input: preset.defaultCommand }]);
-        } else {
-          context.globalState.update("defaultSteps", []);
-        }
-        if (preset.cellStepsOverrides) {
-          const cur = context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
-          for (const [k, v] of Object.entries(preset.cellStepsOverrides)) {
-            if (!cur[Number(k)]) cur[Number(k)] = {};
-            if (Array.isArray((v as Record<string, unknown>).startupSteps)) {
-              cur[Number(k)].startupSteps = (v as Record<string, unknown>).startupSteps;
-            }
+        await cfg.update("defaultRows", preset.rows, vscode.ConfigurationTarget.Global);
+        await cfg.update("defaultCols", preset.cols, vscode.ConfigurationTarget.Global);
+        await cfg.update("zoomPercent", preset.zoomPercent, vscode.ConfigurationTarget.Global);
+        await cfg.update("fontFamily", preset.fontFamily, vscode.ConfigurationTarget.Global);
+        await cfg.update("backgroundColor", preset.bgColor, vscode.ConfigurationTarget.Global);
+        await cfg.update("foregroundColor", preset.fgColor, vscode.ConfigurationTarget.Global);
+        await cfg.update("colorTheme", preset.colorTheme || "", vscode.ConfigurationTarget.Global);
+        await cfg.update("shellType", preset.shellType || "", vscode.ConfigurationTarget.Global);
+        // 2. Allocate the tabId the first opened panel will use, then write per-tab state to it
+        const persistedTabs = context.globalState.get<unknown[]>("lastTabs", []);
+        if (persistedTabs.length === 0) {
+          const firstTabId = TabIdAllocator.next(context);
+          await tabState.setStartupCommands(firstTabId, preset.startupCommands || []);
+          await tabState.setCellLabels(firstTabId, preset.cellLabels || []);
+          await tabState.setDefaultCommand(firstTabId, preset.defaultCommand || "");
+          if (preset.defaultSteps) {
+            await tabState.setDefaultSteps(firstTabId, preset.defaultSteps);
+          } else if (preset.defaultCommand) {
+            await tabState.setDefaultSteps(firstTabId, [{ type: "command", input: preset.defaultCommand }]);
+          } else {
+            await tabState.setDefaultSteps(firstTabId, []);
           }
-          context.globalState.update("cellOverrides", cur);
+          if (preset.cellStepsOverrides) {
+            const cur: Record<number, Record<string, unknown>> = {};
+            for (const [k, v] of Object.entries(preset.cellStepsOverrides)) {
+              cur[Number(k)] = {};
+              if (Array.isArray((v as Record<string, unknown>).startupSteps)) {
+                cur[Number(k)].startupSteps = (v as Record<string, unknown>).startupSteps;
+              }
+            }
+            await tabState.setCellOverrides(firstTabId, cur as Record<number, CellOverride>);
+          }
+          await tabState.setMergedRegions(firstTabId, preset.mergedRegions || []);
+          // Stash pending tabId so the first createOrShow call picks it up.
+          await context.globalState.update("pendingFirstTabId", firstTabId);
         }
       }
     }
@@ -149,20 +214,90 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  // Restore grid panel on VS Code restart
+  // Restore grid panel(s) on VS Code restart — multi-tab aware.
+  // VS Code calls deserializeWebviewPanel once per persisted panel; we consume
+  // lastTabs[] in order. Any extra panels beyond lastTabs are zombies (stale
+  // VS Code workbench state) and get disposed immediately.
+  const lastTabsSnapshot = context.globalState.get<Array<{
+    tabId: number; rows: number; cols: number; cellIds: number[];
+  }>>("lastTabs", []);
+  let deserializeIndex = 0;
+  let selfHealRan = false;
+  let firstDeserializeFired = false;
+
+  // Self-heal: VS Code only auto-deserializes the visible panel; hidden tabs stay dormant
+  // until the user clicks them, which leaves them missing from panelRegistry (and thus the
+  // sidebar). After deserialize fires, force-load any lastTabs entries that didn't register.
+  // Idempotent — runs at most once per activation (whichever triggers first wins).
+  const runSelfHeal = async (): Promise<void> => {
+    if (selfHealRan) return;
+    selfHealRan = true;
+
+    if (panelRegistry.size() > 0) {
+      TerminalGridPanel.persistTabs(context);
+    }
+
+    const registered = new Set(panelRegistry.entries().map(([tid]) => tid));
+    const missing = lastTabsSnapshot.filter((t) => !registered.has(t.tabId));
+
+    if (missing.length > 0) {
+      // VS Code is still holding shells for the hidden tabs. Close those shells so our
+      // re-created panels don't duplicate. Keep the active one — it's our deserialized panel.
+      const tabsToClose: vscode.Tab[] = [];
+      for (const group of vscode.window.tabGroups.all) {
+        for (const tab of group.tabs) {
+          if (tab.input instanceof vscode.TabInputWebview) {
+            const vt = (tab.input as { viewType?: string }).viewType || "";
+            if ((vt === "terminalGrid" || vt.endsWith("-terminalGrid")) && !tab.isActive) {
+              tabsToClose.push(tab);
+            }
+          }
+        }
+      }
+      if (tabsToClose.length > 0) {
+        try { await vscode.window.tabGroups.close(tabsToClose); } catch { /* ignore */ }
+      }
+      // Re-create missing panels in lastTabs order. Side effect: the last-created becomes active.
+      for (const entry of missing) {
+        TerminalGridPanel.createOrShow(context, entry.rows, entry.cols, {
+          forceNewTab: true,
+          tabIdOverride: entry.tabId,
+          cellIdsOverride: entry.cellIds,
+        });
+      }
+    } else if (panelRegistry.size() === 0) {
+      // No panels deserialized at all — wipe any stale lastTabs so next restart is clean
+      const cur = context.globalState.get<unknown[]>("lastTabs", []);
+      if (cur.length > 0) {
+        void context.globalState.update("lastTabs", undefined);
+        void context.globalState.update("lastGrid", undefined);
+      }
+    }
+  };
+
   context.subscriptions.push(
     vscode.window.registerWebviewPanelSerializer("terminalGrid", {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
-        const lastGrid = context.globalState.get<{ rows: number; cols: number }>("lastGrid");
-        if (lastGrid) {
-          TerminalGridPanel.revive(panel, context, lastGrid.rows, lastGrid.cols);
+        if (deserializeIndex < lastTabsSnapshot.length) {
+          const entry = lastTabsSnapshot[deserializeIndex++];
+          TerminalGridPanel.revive(panel, context, entry.rows, entry.cols, entry.tabId, entry.cellIds);
         } else {
+          // No matching entry in lastTabs → zombie. Dispose to avoid orphaned panels.
           panel.dispose();
+        }
+        // First deserialize confirms VS Code is alive enough to hold panels — fast-track self-heal.
+        if (!firstDeserializeFired) {
+          firstDeserializeFired = true;
+          setTimeout(() => void runSelfHeal(), 100);
         }
       },
     })
   );
+
+  // Fallback: if no deserialize callback fires (no persisted panels, or VS Code is slow),
+  // still run self-heal eventually to clean stale state.
+  setTimeout(() => void runSelfHeal(), 1500);
 
   // Commands
   context.subscriptions.push(
@@ -187,29 +322,109 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("terminalGrid.open3x3", () =>
       TerminalGridPanel.createOrShow(context, 3, 3)
     ),
-    // Agent Teams API
+    // ── Tab management commands (also reachable from sidebar Tabs card) ──
+    vscode.commands.registerCommand("terminalGrid.newTab", () => {
+      const active = panelRegistry.getActive();
+      const cfg = vscode.workspace.getConfiguration("terminalGrid");
+      const rows = active?.getRows() ?? cfg.get<number>("defaultRows", 2);
+      const cols = active?.getCols() ?? cfg.get<number>("defaultCols", 3);
+      TerminalGridPanel.createOrShow(context, rows, cols, { forceNewTab: true });
+    }),
+    vscode.commands.registerCommand("terminalGrid.duplicateTab", async () => {
+      const active = panelRegistry.getActive();
+      if (!active) {
+        vscode.window.showWarningMessage(vscode.l10n.t("No active tab to duplicate."));
+        return;
+      }
+      const rows = active.getRows();
+      const cols = active.getCols();
+      const srcTabId = active.getTabId();
+      const newTabId = TabIdAllocator.next(context);
+      await tabState.cloneTab(srcTabId, newTabId);
+      TerminalGridPanel.createOrShow(context, rows, cols, { forceNewTab: true, tabIdOverride: newTabId });
+      vscode.window.showInformationMessage(
+        vscode.l10n.t("Tab duplicated. Terminal history is not copied; cells will start with the configured startup commands.")
+      );
+    }),
+    vscode.commands.registerCommand("terminalGrid.closeTab", () => {
+      if (panelRegistry.size() <= 1) {
+        vscode.window.showWarningMessage(vscode.l10n.t("Cannot close the last remaining tab."));
+        return;
+      }
+      const active = panelRegistry.getActive();
+      if (active) active.dispose();
+    }),
+    vscode.commands.registerCommand("terminalGrid.resetCellIds", async () => {
+      if (panelRegistry.size() > 0) {
+        vscode.window.showWarningMessage(
+          vscode.l10n.t("Close all Terminal Grid tabs before resetting cell IDs.")
+        );
+        return;
+      }
+      await cellIdMapper.reset(context);
+      await TabIdAllocator.reset(context);
+      vscode.window.showInformationMessage(
+        vscode.l10n.t("Cell IDs and tab counter reset.")
+      );
+    }),
+    /** Nuclear option for zombie tabs — closes everything and clears all persisted multi-tab state. */
+    vscode.commands.registerCommand("terminalGrid.resetAllTabs", async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        vscode.l10n.t("Close all Terminal Grid tabs and wipe persisted tab state? This cannot be undone."),
+        { modal: true },
+        vscode.l10n.t("Reset")
+      );
+      if (confirm !== vscode.l10n.t("Reset")) return;
+      panelRegistry.disposeAll();
+      await cellIdMapper.reset(context);
+      await TabIdAllocator.reset(context);
+      await context.globalState.update("lastTabs", undefined);
+      await context.globalState.update("lastGrid", undefined);
+      await context.globalState.update("pendingFirstTabId", undefined);
+      vscode.window.showInformationMessage(
+        vscode.l10n.t("All Terminal Grid tabs and persisted state reset.")
+      );
+    }),
+    // Agent Teams API — cellId is a sparse GLOBAL id (resolved across all open tabs)
     vscode.commands.registerCommand(
       "terminalGrid.sendToCell",
       (cellId: number, text: string): boolean => {
-        return TerminalGridPanel.currentPanel?.sendToCell(cellId, text) ?? false;
+        const resolved = cellIdMapper.resolve(cellId);
+        if (!resolved) return false;
+        return panelRegistry.get(resolved.tabId)?.sendToCell(resolved.localCellId, text) ?? false;
       }
     ),
     vscode.commands.registerCommand(
       "terminalGrid.readCell",
       (cellId: number, lines?: number): string | null => {
-        return TerminalGridPanel.currentPanel?.readCell(cellId, lines) ?? null;
+        const resolved = cellIdMapper.resolve(cellId);
+        if (!resolved) return null;
+        return panelRegistry.get(resolved.tabId)?.readCell(resolved.localCellId, lines) ?? null;
       }
     ),
     vscode.commands.registerCommand(
       "terminalGrid.getGridInfo",
-      (): { rows: number; cols: number; cellCount: number; cellLabels: string[] } | null => {
-        const panel = TerminalGridPanel.currentPanel;
-        if (!panel) return null;
+      (): {
+        rows: number; cols: number; cellCount: number; cellLabels: string[];
+        tabs: Array<{ tabId: number; rows: number; cols: number; cellIds: number[]; labels: string[] }>;
+        activeTabId: number | null;
+      } | null => {
+        const active = panelRegistry.getActive();
+        if (!active) return null;
+        const tabs = panelRegistry.entries().map(([tabId, p]) => ({
+          tabId,
+          rows: p.getRows(),
+          cols: p.getCols(),
+          cellIds: p.getCellIds(),
+          labels: p.getCellLabels(),
+        }));
         return {
-          rows: panel.getRows(),
-          cols: panel.getCols(),
-          cellCount: panel.getCellCount(),
-          cellLabels: panel.getCellLabels(),
+          rows: active.getRows(),
+          cols: active.getCols(),
+          cellCount: active.getCellCount(),
+          cellLabels: active.getCellLabels(),
+          tabs,
+          activeTabId: panelRegistry.getActiveTabId() ?? null,
         };
       }
     ),
@@ -227,7 +442,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       // 1. getGridInfo
-      const info = await vscode.commands.executeCommand<{rows: number; cols: number; cellCount: number; cellLabels: string[]} | null>("terminalGrid.getGridInfo");
+      const info = await vscode.commands.executeCommand<{
+        rows: number; cols: number; cellCount: number; cellLabels: string[];
+        tabs?: Array<{tabId: number; rows: number; cols: number; cellIds: number[]; labels: string[]}>;
+        activeTabId?: number | null;
+      } | null>("terminalGrid.getGridInfo");
       if (!info) {
         ch.appendLine("[FAIL] getGridInfo returned null. Open a grid first.");
         return;
@@ -283,6 +502,29 @@ export function activate(context: vscode.ExtensionContext): void {
         check("readCell(1) contains CELL1_OK", !!out1 && out1.includes("CELL1_OK"));
       }
 
+      // ── Multi-tab tests (only run when more than one tab is open) ──
+      if (info.tabs && info.tabs.length > 1) {
+        ch.appendLine("\n--- Multi-tab tests ---");
+        const allIds = info.tabs.flatMap((t) => t.cellIds);
+        const unique = new Set(allIds);
+        check("global cell ids unique across all tabs", unique.size === allIds.length, `${allIds.length} ids`);
+        check("activeTabId is a number", typeof info.activeTabId === "number");
+        // Send to second tab's first cell via its global id
+        const tab2 = info.tabs[1];
+        const tab2Global = tab2.cellIds[0];
+        const sent2 = await vscode.commands.executeCommand<boolean>("terminalGrid.sendToCell", tab2Global, "echo __MULTITAB_OK__\r");
+        check(`sendToCell global=${tab2Global} (tab ${tab2.tabId + 1} cell 1) returns true`, sent2 === true);
+        await new Promise((r) => setTimeout(r, 1500));
+        const out2 = await vscode.commands.executeCommand<string | null>("terminalGrid.readCell", tab2Global);
+        check(`readCell global=${tab2Global} contains __MULTITAB_OK__`, !!out2 && out2.includes("__MULTITAB_OK__"));
+        // Invalid global id (beyond any tab's range)
+        const bogusId = Math.max(...allIds) + 10000;
+        const sentBogus = await vscode.commands.executeCommand<boolean>("terminalGrid.sendToCell", bogusId, "x");
+        check(`sendToCell with bogus global id=${bogusId} returns false`, sentBogus === false);
+      } else if (info.tabs) {
+        ch.appendLine(`\n(Multi-tab tests skipped: only ${info.tabs.length} tab open. Open a second tab via the sidebar to enable.)`);
+      }
+
       ch.appendLine(`\n=== ${passed} passed, ${failed} failed ===`);
       if (failed === 0) {
         vscode.window.showInformationMessage(vscode.l10n.t("Terminal Grid API: All {0} tests passed!", passed));
@@ -317,5 +559,5 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   mcpBridge?.stop();
   mcpBridge = undefined;
-  TerminalGridPanel.currentPanel?.dispose();
+  panelRegistry.disposeAll();
 }

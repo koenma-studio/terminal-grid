@@ -5,6 +5,9 @@ import * as os from "os";
 import * as cp from "child_process";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { THEME_NAMES, resolveThemeColors } from "./themes";
+import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
+import { tabState } from "./TabStateStore";
+import type { CellOverride } from "./TabStateStore";
 
 interface CustomFont {
   name: string;
@@ -22,14 +25,32 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private readonly _context: vscode.ExtensionContext;
   private _mcpPort = 0;
+  private _configSendTimer: NodeJS.Timeout | undefined;
 
   constructor(context: vscode.ExtensionContext) {
     this._context = context;
+    // Auto-refresh sidebar when tabs change (add/remove/active switch).
+    // Debounced because active-tab churn can fire many events in rapid succession.
+    panelRegistry.onDidChange(() => this._scheduleConfigSend());
+  }
+
+  /** Debounced sidebar refresh — coalesces bursts of tab events. */
+  private _scheduleConfigSend(): void {
+    if (this._configSendTimer) clearTimeout(this._configSendTimer);
+    this._configSendTimer = setTimeout(() => {
+      this._configSendTimer = undefined;
+      this.sendConfig();
+    }, 50);
   }
 
   public setMcpPort(port: number): void {
     this._mcpPort = port;
     this._view?.webview.postMessage({ type: "mcpPort", port });
+  }
+
+  /** Active tab id — falls back to 0 (the migrated default namespace) when no tab is open. */
+  private get _tid(): number {
+    return panelRegistry.getActiveTabId() ?? 0;
   }
 
   resolveWebviewView(
@@ -121,24 +142,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
         case "addStartupCommand": {
-          const cmds = this._context.globalState.get<{command: string; count: number}[]>("startupCommands", []);
+          const cmds = tabState.getStartupCommands(this._tid) as {command: string; count: number}[];
           cmds.push({ command: msg.command, count: 1 });
-          await this._context.globalState.update("startupCommands", cmds);
+          await tabState.setStartupCommands(this._tid, cmds);
           this.sendConfig();
           break;
         }
         case "removeStartupCommand": {
-          const cmds = this._context.globalState.get<{command: string; count: number}[]>("startupCommands", []);
+          const cmds = tabState.getStartupCommands(this._tid) as {command: string; count: number}[];
           cmds.splice(msg.index, 1);
-          await this._context.globalState.update("startupCommands", cmds);
+          await tabState.setStartupCommands(this._tid, cmds);
           this.sendConfig();
           break;
         }
         case "updateCommandCount": {
-          const cmds = this._context.globalState.get<{command: string; count: number}[]>("startupCommands", []);
+          const cmds = tabState.getStartupCommands(this._tid) as {command: string; count: number}[];
           if (cmds[msg.index]) {
             cmds[msg.index].count = Math.max(1, msg.count);
-            await this._context.globalState.update("startupCommands", cmds);
+            await tabState.setStartupCommands(this._tid, cmds);
           }
           this.sendConfig();
           break;
@@ -146,14 +167,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         // ── Sequential startup steps ──
         case "addStep": {
           if (msg.target === "all") {
-            const steps = this._context.globalState.get<{type: string; input?: string; ms?: number}[]>("defaultSteps", []);
+            const steps = tabState.getDefaultSteps(this._tid) as {type: string; input?: string; ms?: number}[];
             steps.push(msg.step);
-            await this._context.globalState.update("defaultSteps", steps);
+            await tabState.setDefaultSteps(this._tid, steps);
             // Sync legacy: first command step → defaultCommand
             const firstCmd = steps.find((s: {type: string; input?: string}) => s.type === "command");
-            await this._context.globalState.update("defaultCommand", firstCmd?.input || "");
+            await tabState.setDefaultCommand(this._tid, firstCmd?.input || "");
           } else {
-            const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+            const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
             const cid = msg.target as number;
             if (!overrides[cid]) overrides[cid] = {};
             if (!Array.isArray(overrides[cid].startupSteps)) overrides[cid].startupSteps = [];
@@ -161,26 +182,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             // Sync legacy
             const first = (overrides[cid].startupSteps as {type: string; input?: string}[]).find(s => s.type === "command");
             overrides[cid].startupCommand = first?.input || "";
-            await this._context.globalState.update("cellOverrides", overrides);
+            await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           }
           this.sendConfig();
           break;
         }
         case "removeStep": {
           if (msg.target === "all") {
-            const steps = this._context.globalState.get<{type: string; input?: string}[]>("defaultSteps", []);
+            const steps = tabState.getDefaultSteps(this._tid) as {type: string; input?: string}[];
             steps.splice(msg.index, 1);
-            await this._context.globalState.update("defaultSteps", steps);
+            await tabState.setDefaultSteps(this._tid, steps);
             const firstCmd = steps.find((s: {type: string; input?: string}) => s.type === "command");
-            await this._context.globalState.update("defaultCommand", firstCmd?.input || "");
+            await tabState.setDefaultCommand(this._tid, firstCmd?.input || "");
           } else {
-            const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+            const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
             const cid = msg.target as number;
             if (Array.isArray(overrides[cid]?.startupSteps)) {
               (overrides[cid].startupSteps as unknown[]).splice(msg.index, 1);
               const first = (overrides[cid].startupSteps as {type: string; input?: string}[]).find(s => s.type === "command");
               overrides[cid].startupCommand = first?.input || "";
-              await this._context.globalState.update("cellOverrides", overrides);
+              await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
             }
           }
           this.sendConfig();
@@ -188,37 +209,37 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         case "reorderSteps": {
           if (msg.target === "all") {
-            await this._context.globalState.update("defaultSteps", msg.steps);
+            await tabState.setDefaultSteps(this._tid, msg.steps);
             const firstCmd = (msg.steps as {type: string; input?: string}[]).find(s => s.type === "command");
-            await this._context.globalState.update("defaultCommand", firstCmd?.input || "");
+            await tabState.setDefaultCommand(this._tid, firstCmd?.input || "");
           } else {
-            const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+            const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
             const cid = msg.target as number;
             if (!overrides[cid]) overrides[cid] = {};
             overrides[cid].startupSteps = msg.steps;
             const first = (msg.steps as {type: string; input?: string}[]).find(s => s.type === "command");
             overrides[cid].startupCommand = first?.input || "";
-            await this._context.globalState.update("cellOverrides", overrides);
+            await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           }
           this.sendConfig();
           break;
         }
         case "updateStep": {
           if (msg.target === "all") {
-            const steps = this._context.globalState.get<unknown[]>("defaultSteps", []);
+            const steps = tabState.getDefaultSteps(this._tid) as unknown[];
             if (msg.index >= 0 && msg.index < steps.length) {
               steps[msg.index] = msg.step;
-              await this._context.globalState.update("defaultSteps", steps);
+              await tabState.setDefaultSteps(this._tid, steps);
             }
           } else {
-            const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+            const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
             const cid = msg.target as number;
             const steps = (overrides[cid]?.startupSteps as unknown[] | undefined) || [];
             if (msg.index >= 0 && msg.index < steps.length) {
               steps[msg.index] = msg.step;
               if (!overrides[cid]) overrides[cid] = {};
               overrides[cid].startupSteps = steps;
-              await this._context.globalState.update("cellOverrides", overrides);
+              await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
             }
           }
           this.sendConfig();
@@ -297,6 +318,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             mergedRegions?: unknown[];
           } | undefined;
           if (!preset) break;
+          // Per spec: preset load overwrites the active tab. We reuse the active tab's id
+          // (or allocate a fresh one if no tab is open) and write the preset state to that
+          // namespace before re-opening, so the new panel inherits the preset on spawn.
+          const activeTabId = panelRegistry.getActiveTabId();
+          const targetTabId = activeTabId ?? TabIdAllocator.next(this._context);
+          // Preserve the active tab's slot so the reopened panel doesn't jump to the end
+          const activeIdx = activeTabId !== undefined
+            ? panelRegistry.entries().findIndex(([tid]) => tid === activeTabId)
+            : -1;
+          panelRegistry.getActive()?.dispose();
           const cfg = vscode.workspace.getConfiguration("terminalGrid");
           await cfg.update("defaultRows", preset.rows, vscode.ConfigurationTarget.Global);
           await cfg.update("defaultCols", preset.cols, vscode.ConfigurationTarget.Global);
@@ -306,29 +337,35 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await cfg.update("foregroundColor", preset.fgColor, vscode.ConfigurationTarget.Global);
           await cfg.update("colorTheme", preset.colorTheme || "", vscode.ConfigurationTarget.Global);
           await cfg.update("shellType", preset.shellType || "", vscode.ConfigurationTarget.Global);
-          await this._context.globalState.update("startupCommands", preset.startupCommands || []);
-          await this._context.globalState.update("cellLabels", preset.cellLabels || []);
-          await this._context.globalState.update("defaultCommand", preset.defaultCommand || "");
+          await tabState.setStartupCommands(targetTabId, preset.startupCommands || []);
+          await tabState.setCellLabels(targetTabId, preset.cellLabels || []);
+          await tabState.setDefaultCommand(targetTabId, preset.defaultCommand || "");
           // Restore sequential startup steps
           if (preset.defaultSteps) {
-            await this._context.globalState.update("defaultSteps", preset.defaultSteps);
+            await tabState.setDefaultSteps(targetTabId, preset.defaultSteps);
           } else if (preset.defaultCommand) {
-            await this._context.globalState.update("defaultSteps", [{ type: "command", input: preset.defaultCommand }]);
+            await tabState.setDefaultSteps(targetTabId, [{ type: "command", input: preset.defaultCommand }]);
           } else {
-            await this._context.globalState.update("defaultSteps", []);
+            await tabState.setDefaultSteps(targetTabId, []);
           }
           if (preset.cellStepsOverrides) {
-            const cur = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+            const cur: Record<number, Record<string, unknown>> = {};
             for (const [k, v] of Object.entries(preset.cellStepsOverrides)) {
-              if (!cur[Number(k)]) cur[Number(k)] = {};
+              cur[Number(k)] = {};
               if (Array.isArray(v.startupSteps)) cur[Number(k)].startupSteps = v.startupSteps;
             }
-            await this._context.globalState.update("cellOverrides", cur);
+            await tabState.setCellOverrides(targetTabId, cur as Record<number, CellOverride>);
+          } else {
+            await tabState.setCellOverrides(targetTabId, {});
           }
           // Restore merge regions
-          await this._context.globalState.update("mergedRegions", preset.mergedRegions || []);
-          // Auto-open grid with loaded preset dimensions
-          TerminalGridPanel.createOrShow(this._context, preset.rows, preset.cols);
+          await tabState.setMergedRegions(targetTabId, (preset.mergedRegions || []) as { startRow: number; startCol: number; rowSpan: number; colSpan: number; }[]);
+          // Open grid with the prepared tab id so it picks up the preset state on spawn
+          TerminalGridPanel.createOrShow(this._context, preset.rows, preset.cols, {
+            forceNewTab: true,
+            tabIdOverride: targetTabId,
+            positionOverride: activeIdx >= 0 ? activeIdx : undefined,
+          });
           this.sendConfig();
           break;
         }
@@ -379,9 +416,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         // ── Per-cell config ──
         case "setCellConfig": {
-          const overrides = this._context.globalState.get<Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string}>>("cellOverrides", {});
+          const overrides = tabState.getCellOverrides(this._tid) as Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string}>;
           overrides[msg.cellId] = { bgColor: msg.bgColor || "", fgColor: msg.fgColor || "", fontFamily: msg.fontFamily || "", themeName: msg.themeName || "", shellType: (overrides[msg.cellId]?.shellType || "") };
-          await this._context.globalState.update("cellOverrides", overrides);
+          await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           if (TerminalGridPanel.currentPanel) {
             const tc = msg.themeName ? resolveThemeColors(msg.themeName) : null;
             TerminalGridPanel.currentPanel.sendCellConfig(msg.cellId, msg.bgColor || "", msg.fgColor || "", msg.fontFamily || "", msg.themeName || "", tc);
@@ -389,12 +426,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
         case "setShellForCell": {
-          const overrides = this._context.globalState.get<Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string}>>("cellOverrides", {});
+          const overrides = tabState.getCellOverrides(this._tid) as Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string}>;
           if (!overrides[msg.cellId]) {
             overrides[msg.cellId] = {};
           }
           overrides[msg.cellId].shellType = msg.shellType || "";
-          await this._context.globalState.update("cellOverrides", overrides);
+          await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           if (TerminalGridPanel.currentPanel) {
             TerminalGridPanel.currentPanel.restartCell(msg.cellId);
           }
@@ -403,42 +440,42 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case "setDefaultCommand": {
           // Legacy handler — sync to new defaultSteps format
           const cmd = msg.command || "";
-          await this._context.globalState.update("defaultCommand", cmd);
-          await this._context.globalState.update("defaultSteps", cmd ? [{ type: "command", input: cmd }] : []);
+          await tabState.setDefaultCommand(this._tid, cmd);
+          await tabState.setDefaultSteps(this._tid, cmd ? [{ type: "command", input: cmd }] : []);
           this.sendConfig();
           break;
         }
         case "setCellCommand": {
           // Legacy handler — sync to new startupSteps format
-          const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+          const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
           if (!overrides[msg.cellId]) overrides[msg.cellId] = {};
           const cmdVal = msg.command || "";
           overrides[msg.cellId].startupCommand = cmdVal;
           overrides[msg.cellId].startupSteps = cmdVal ? [{ type: "command", input: cmdVal }] : [];
-          await this._context.globalState.update("cellOverrides", overrides);
+          await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           this.sendConfig();
           break;
         }
         case "clearAllCellOverrides": {
-          await this._context.globalState.update("cellOverrides", {});
+          await tabState.setCellOverrides(this._tid, {});
           if (TerminalGridPanel.currentPanel) {
             TerminalGridPanel.currentPanel.clearCellOverrides();
           }
           break;
         }
         case "clearAllCellShells": {
-          const overrides = this._context.globalState.get<Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string; startupCommand?: string}>>("cellOverrides", {});
+          const overrides = tabState.getCellOverrides(this._tid) as Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string; startupCommand?: string}>;
           for (const key of Object.keys(overrides)) {
             if (overrides[parseInt(key)]) {
               overrides[parseInt(key)].shellType = "";
             }
           }
-          await this._context.globalState.update("cellOverrides", overrides);
+          await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
           break;
         }
         case "saveMergeRegions": {
           const regions = msg.regions || [];
-          await this._context.globalState.update("mergedRegions", regions);
+          await tabState.setMergedRegions(this._tid, regions);
           // Excel-style: clear settings for hidden (absorbed) cells
           const gridCols = vscode.workspace.getConfiguration("terminalGrid").get<number>("defaultCols", 3);
           const hidden = new Set<number>();
@@ -451,16 +488,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             }
           }
           if (hidden.size > 0) {
-            const overrides = this._context.globalState.get<Record<string, unknown>>("cellOverrides", {}) as Record<string, unknown>;
-            const labels = this._context.globalState.get<string[]>("cellLabels", []);
+            const overrides = tabState.getCellOverrides(this._tid) as unknown as Record<string, unknown>;
+            const labels = tabState.getCellLabels(this._tid);
             let dirty = false;
             for (const id of hidden) {
               if (overrides[String(id)]) { delete overrides[String(id)]; dirty = true; }
               if (labels[id]) { labels[id] = ""; dirty = true; }
             }
             if (dirty) {
-              await this._context.globalState.update("cellOverrides", overrides);
-              await this._context.globalState.update("cellLabels", labels);
+              await tabState.setCellOverrides(this._tid, overrides as unknown as Record<number, CellOverride>);
+              await tabState.setCellLabels(this._tid, labels);
             }
           }
           this.sendConfig();
@@ -481,10 +518,57 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this._view?.webview.postMessage({ type: "mcpRegistrationStatus", ...status });
           break;
         }
-        case "showMcpAlreadyRegistered": {
+        case "unregisterMcpDesktop": {
+          const result = await this._unregisterMcpInConfig("desktop");
+          this._view?.webview.postMessage({ type: "mcpUnregisterResult", target: "desktop", ...result });
+          break;
+        }
+        // ── Tab management ──
+        case "switchTab": {
+          const panel = panelRegistry.get(msg.tabId);
+          if (panel) panel.reveal();
+          break;
+        }
+        case "newTab": {
+          const active = panelRegistry.getActive();
+          const cfg = vscode.workspace.getConfiguration("terminalGrid");
+          const rows = active?.getRows() ?? cfg.get<number>("defaultRows", 2);
+          const cols = active?.getCols() ?? cfg.get<number>("defaultCols", 3);
+          TerminalGridPanel.createOrShow(this._context, rows, cols, { forceNewTab: true });
+          break;
+        }
+        case "duplicateTab": {
+          const active = panelRegistry.getActive();
+          if (!active) break;
+          const rows = active.getRows();
+          const cols = active.getCols();
+          const srcTabId = active.getTabId();
+          const newTabId = TabIdAllocator.next(this._context);
+          await tabState.cloneTab(srcTabId, newTabId);
+          TerminalGridPanel.createOrShow(this._context, rows, cols, { forceNewTab: true, tabIdOverride: newTabId });
           vscode.window.showInformationMessage(
-            vscode.l10n.t("Terminal Grid MCP server is already registered in Claude Desktop.")
+            vscode.l10n.t("Tab duplicated. Terminal history is not copied; cells will start with the configured startup commands.")
           );
+          break;
+        }
+        case "removeTab": {
+          if (panelRegistry.size() <= 1) break;
+          const tab = panelRegistry.get(msg.tabId);
+          if (!tab) break;
+          await tabState.deleteTab(msg.tabId);
+          tab.dispose();
+          break;
+        }
+        case "renameTab": {
+          // Inline rename — name comes from the sidebar input directly, no native dialog.
+          if (typeof msg.name !== "string") break;
+          const panel = panelRegistry.get(msg.tabId);
+          if (!panel) break;
+          await tabState.setTabName(msg.tabId, msg.name.trim());
+          for (const [, p] of panelRegistry.entries()) {
+            p.refreshTitle();
+          }
+          this.sendConfig();
           break;
         }
         // ── node-pty install ──
@@ -535,18 +619,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       name,
       rows: cfg.get<number>("defaultRows", 2),
       cols: cfg.get<number>("defaultCols", 3),
-      startupCommands: this._context.globalState.get<{command: string; count: number}[]>("startupCommands", []),
-      cellLabels: this._context.globalState.get<string[]>("cellLabels", []),
+      startupCommands: tabState.getStartupCommands(this._tid) as {command: string; count: number}[],
+      cellLabels: tabState.getCellLabels(this._tid),
       zoomPercent: cfg.get<number>("zoomPercent", 100),
       fontFamily: cfg.get<string>("fontFamily", ""),
       bgColor: cfg.get<string>("backgroundColor", ""),
       fgColor: cfg.get<string>("foregroundColor", ""),
       colorTheme: cfg.get<string>("colorTheme", ""),
       shellType: cfg.get<string>("shellType", ""),
-      defaultCommand: this._context.globalState.get<string>("defaultCommand", ""),
-      defaultSteps: this._context.globalState.get<unknown[]>("defaultSteps", []),
-      cellStepsOverrides: this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {}),
-      mergedRegions: this._context.globalState.get<unknown[]>("mergedRegions", []),
+      defaultCommand: tabState.getDefaultCommand(this._tid),
+      defaultSteps: tabState.getDefaultSteps(this._tid),
+      cellStepsOverrides: tabState.getCellOverrides(this._tid) as unknown as Record<number, Record<string, unknown>>,
+      mergedRegions: tabState.getMergedRegions(this._tid),
     };
     const presets = this._context.globalState.get<Record<string, unknown>[]>("presets", []);
     const existIdx = presets.findIndex((p) => (p as {name: string}).name === name);
@@ -562,19 +646,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private async _migrateSteps(): Promise<void> {
     let dirty = false;
     // Global: defaultCommand → defaultSteps
-    const defaultSteps = this._context.globalState.get<unknown[]>("defaultSteps", []);
-    const defaultCommand = this._context.globalState.get<string>("defaultCommand", "");
+    const defaultSteps = tabState.getDefaultSteps(this._tid) as unknown[];
+    const defaultCommand = tabState.getDefaultCommand(this._tid);
     if (defaultCommand && defaultSteps.length === 0) {
-      await this._context.globalState.update("defaultSteps", [{ type: "command", input: defaultCommand }]);
-      await this._context.globalState.update("defaultCommand", "");
+      await tabState.setDefaultSteps(this._tid, [{ type: "command", input: defaultCommand }]);
+      await tabState.setDefaultCommand(this._tid, "");
       dirty = true;
     } else if (defaultCommand && defaultSteps.length > 0) {
       // New steps exist — old field is stale, just clear it
-      await this._context.globalState.update("defaultCommand", "");
+      await tabState.setDefaultCommand(this._tid, "");
       dirty = true;
     }
     // Per-cell: startupCommand → startupSteps
-    const overrides = this._context.globalState.get<Record<number, Record<string, unknown>>>("cellOverrides", {});
+    const overrides = tabState.getCellOverrides(this._tid) as Record<number, Record<string, unknown>>;
     for (const key of Object.keys(overrides)) {
       const ov = overrides[Number(key)];
       if (!ov) continue;
@@ -590,17 +674,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       }
     }
     // Old startupCommands array (count-based) → clear if defaultSteps already has data
-    const oldCmds = this._context.globalState.get<unknown[]>("startupCommands", []);
+    const oldCmds = tabState.getStartupCommands(this._tid);
     if (oldCmds.length > 0) {
-      await this._context.globalState.update("startupCommands", []);
+      await tabState.setStartupCommands(this._tid, []);
       dirty = true;
     }
     if (dirty) {
-      await this._context.globalState.update("cellOverrides", overrides);
+      await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
     }
   }
 
   private _getClaudeDesktopConfigPath(): string {
+    return SidebarProvider._claudeDesktopConfigPath();
+  }
+
+  /** OS-specific path to Claude Desktop's config file. */
+  private static _claudeDesktopConfigPath(): string {
     const platform = process.platform;
     if (platform === "win32") {
       return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "Claude", "claude_desktop_config.json");
@@ -609,6 +698,28 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     } else {
       return path.join(os.homedir(), ".config", "Claude", "claude_desktop_config.json");
     }
+  }
+
+  /**
+   * Activation-time hygiene: if Claude Desktop's config still lists our MCP server but the
+   * referenced script no longer exists on disk (e.g., a previous extension version was
+   * uninstalled or moved), quietly remove the stale entry. Does not re-register — the user
+   * keeps full control via the sidebar's MCP Registration card.
+   */
+  public static autoCleanupStaleRegistration(): void {
+    const configPath = SidebarProvider._claudeDesktopConfigPath();
+    if (!fs.existsSync(configPath)) return;
+    try {
+      const raw = fs.readFileSync(configPath, "utf-8");
+      const config = JSON.parse(raw) as { mcpServers?: Record<string, { args?: string[] }> };
+      const entry = config.mcpServers?.["terminal-grid"];
+      if (!entry) return;
+      const scriptPath = entry.args?.[0];
+      if (scriptPath && !fs.existsSync(scriptPath)) {
+        delete config.mcpServers!["terminal-grid"];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+      }
+    } catch { /* config malformed or unreadable — leave alone */ }
   }
 
   private _getMcpServerEntry(): { command: string; args: string[]; env: Record<string, string> } {
@@ -667,19 +778,44 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async _unregisterMcpInConfig(target: "desktop"): Promise<{ success: boolean; message: string }> {
+    const configPath = this._getClaudeDesktopConfigPath();
+
+    try {
+      if (!fs.existsSync(configPath)) {
+        return { success: true, message: "not-registered" };
+      }
+      const raw = fs.readFileSync(configPath, "utf-8");
+      const config = JSON.parse(raw) as Record<string, unknown>;
+      const servers = config.mcpServers as Record<string, unknown> | undefined;
+      if (servers && "terminal-grid" in servers) {
+        delete servers["terminal-grid"];
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+      }
+      vscode.window.showInformationMessage(
+        vscode.l10n.t("Terminal Grid MCP server unregistered from Claude Desktop. Restart Claude Desktop to apply.")
+      );
+      return { success: true, message: "unregistered" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      vscode.window.showErrorMessage(vscode.l10n.t("Failed to unregister MCP server: {0}", message));
+      return { success: false, message };
+    }
+  }
+
   public sendConfig(): void {
     if (!this._view) return;
     // Auto-migrate legacy fields on every config send
     this._migrateSteps();
     const cfg = vscode.workspace.getConfiguration("terminalGrid");
     const customFonts = this._context.globalState.get<CustomFont[]>("customFonts", []);
-    const startupCommands = this._context.globalState.get<{command: string; count: number}[]>("startupCommands", []);
+    const startupCommands = tabState.getStartupCommands(this._tid) as {command: string; count: number}[];
     const projects = this._context.globalState.get<{name: string; path: string}[]>("projects", []);
     const presets = this._context.globalState.get<Record<string, unknown>[]>("presets", []);
     const projectPresets = this._context.globalState.get<Record<string, string>>("projectPresets", {});
-    const cellLabels = this._context.globalState.get<string[]>("cellLabels", []);
-    const cellOverrides = this._context.globalState.get<Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; shellType?: string; startupSteps?: unknown[]}>>("cellOverrides", {});
-    const defaultSteps = this._context.globalState.get<unknown[]>("defaultSteps", []);
+    const cellLabels = tabState.getCellLabels(this._tid);
+    const cellOverrides = tabState.getCellOverrides(this._tid) as Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; shellType?: string; startupSteps?: unknown[]}>;
+    const defaultSteps = tabState.getDefaultSteps(this._tid) as unknown[];
     const sectionStates = this._context.globalState.get<Record<string, boolean>>("sectionStates", {});
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || "";
     const panel = TerminalGridPanel.currentPanel;
@@ -692,7 +828,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       fgColor: cfg.get<string>("foregroundColor", ""),
       colorTheme: cfg.get<string>("colorTheme", ""),
       shellType: cfg.get<string>("shellType", ""),
-      defaultCommand: this._context.globalState.get<string>("defaultCommand", ""),
+      defaultCommand: tabState.getDefaultCommand(this._tid),
       themeNames: THEME_NAMES,
       availableShells: availableShells.map((s) => ({ name: s.name, path: s.path })),
       customFonts: customFonts.map((f) => f.name),
@@ -707,9 +843,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       workspacePath: workspacePath,
       gridRows: panel?.getRows() ?? 0,
       gridCols: panel?.getCols() ?? 0,
-      mergedRegions: this._context.globalState.get<unknown[]>("mergedRegions", []),
+      tabs: panelRegistry.entries().map(([tabId, p]) => ({
+        tabId,
+        rows: p.getRows(),
+        cols: p.getCols(),
+        name: tabState.getTabName(tabId),
+      })),
+      activeTabId: panelRegistry.getActiveTabId() ?? null,
+      mergedRegions: tabState.getMergedRegions(this._tid),
       hiddenCells: (() => {
-        const mr = this._context.globalState.get<{startRow: number; startCol: number; rowSpan: number; colSpan: number}[]>("mergedRegions", []);
+        const mr = tabState.getMergedRegions(this._tid);
         const gc = cfg.get<number>("defaultCols", 3);
         const h: number[] = [];
         for (const m of mr) {
@@ -1197,6 +1340,97 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       background: rgba(255,170,0,.3);
       border-color: rgba(255,170,0,.5);
     }
+    /* ── Tabs card ── */
+    .tabs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tabs-empty {
+      font-size: 11px;
+      opacity: .5;
+      text-align: center;
+      padding: 12px 0;
+    }
+    .tab-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      cursor: pointer;
+      font-size: 11px;
+      transition: background .15s, border-color .15s;
+      user-select: none;
+    }
+    .tab-item:hover {
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.15);
+    }
+    .tab-item.active {
+      background: rgba(100,170,255,.12);
+      border-color: rgba(100,170,255,.35);
+    }
+    .tab-item-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tab-item-meta {
+      opacity: .55;
+      margin-left: 6px;
+      font-size: 10px;
+    }
+    .tab-item-close {
+      background: transparent;
+      border: none;
+      color: inherit;
+      opacity: .5;
+      cursor: pointer;
+      padding: 2px 6px;
+      margin-left: 6px;
+      border-radius: 3px;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .tab-item-close:hover:not(:disabled) {
+      background: rgba(255,80,80,.2);
+      opacity: 1;
+    }
+    .tab-item-close:disabled {
+      opacity: .2;
+      cursor: not-allowed;
+    }
+    .tab-item-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(0,0,0,.3);
+      border: 1px solid rgba(100,170,255,.6);
+      color: inherit;
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      outline: none;
+      font-family: inherit;
+    }
+    .tab-item-input:focus {
+      border-color: rgba(100,170,255,.9);
+      background: rgba(0,0,0,.4);
+    }
+    .tab-item.editing {
+      background: rgba(100,170,255,.18);
+      border-color: rgba(100,170,255,.5);
+    }
+    .section-active-tab {
+      font-size: 10px;
+      opacity: .6;
+      margin-left: 6px;
+      font-weight: normal;
+      color: rgba(100,170,255,.9);
+    }
   </style>
 </head>
 <body>
@@ -1236,9 +1470,34 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
 
+    <!-- Tabs (multi-grid management) -->
+    <div class="glass-card collapsed" data-section="tabs">
+      <div class="section-header collapsible">
+        <div class="section-label">${vscode.l10n.t("Tabs")}</div>
+        <span class="tip-wrap">
+          <span class="tip-icon">?</span>
+          <div class="tip-bubble">
+            ${vscode.l10n.t("Manage multiple grid tabs — each tab keeps its own labels, cell settings, merges, and startup steps. Click a tab to focus it, right-click or double-click to rename. + opens a new empty tab, ⧉ duplicates the active tab, × closes a tab (last tab can't be closed).")}
+          </div>
+        </span>
+        <span class="collapse-icon">▾</span>
+      </div>
+      <div class="section-body">
+        <div id="tabsList" class="tabs-list"></div>
+        <div class="tabs-actions" style="display: flex; gap: 6px; margin-top: 8px;">
+          <button class="glass-btn" id="newTabBtn" title="${vscode.l10n.t("New tab (same size as active)")}" style="font-size: 11px; padding: 8px 10px; flex: 1;">
+            <span class="btn-icon">+</span> ${vscode.l10n.t("New Tab")}
+          </button>
+          <button class="glass-btn" id="duplicateTabBtn" title="${vscode.l10n.t("Duplicate active tab (copies labels, overrides, merges, startup)")}" style="font-size: 11px; padding: 8px 10px; flex: 1;">
+            <span class="btn-icon">⧉</span> ${vscode.l10n.t("Duplicate")}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="glass-card" data-section="gridSize">
       <div class="section-header collapsible">
-        <div class="section-label">${vscode.l10n.t("Select Grid Size")}</div>
+        <div class="section-label">${vscode.l10n.t("Select Grid Size")} <span id="gridSizeActiveLabel" class="section-active-tab"></span></div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
@@ -1525,6 +1784,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       shell: vscode.l10n.t("Shell"),
       mcpAlreadyRegistered: vscode.l10n.t("Registered in Claude Desktop"),
       mcpRegister: vscode.l10n.t("Register in Claude Desktop"),
+      mcpUnregister: vscode.l10n.t("Unregister"),
+      mcpRegisteredStatus: vscode.l10n.t("✅ Registered in Claude Desktop"),
     })};
     var vscode = acquireVsCodeApi();
 
@@ -1596,30 +1857,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     var registerMcpDesktopBtn = document.getElementById('registerMcpDesktopBtn');
     var mcpAlreadyRegistered = false;
     registerMcpDesktopBtn.addEventListener('click', function() {
-      if (mcpAlreadyRegistered) {
-        vscode.postMessage({ type: 'showMcpAlreadyRegistered' });
-        return;
-      }
       registerMcpDesktopBtn.disabled = true;
       registerMcpDesktopBtn.style.opacity = '0.5';
-      vscode.postMessage({ type: 'registerMcpDesktop' });
+      if (mcpAlreadyRegistered) {
+        vscode.postMessage({ type: 'unregisterMcpDesktop' });
+      } else {
+        vscode.postMessage({ type: 'registerMcpDesktop' });
+      }
     });
     // Check registration status on load
     vscode.postMessage({ type: 'checkMcpRegistration' });
     function setMcpRegistered(registered) {
       mcpAlreadyRegistered = registered;
+      registerMcpDesktopBtn.disabled = false;
+      registerMcpDesktopBtn.style.opacity = '1';
+      registerMcpDesktopBtn.style.cursor = 'pointer';
       if (registered) {
-        mcpRegStatusEl.innerHTML = '';
-        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2705</span> ' + __i18n.mcpAlreadyRegistered;
-        registerMcpDesktopBtn.disabled = false;
-        registerMcpDesktopBtn.style.opacity = '0.65';
-        registerMcpDesktopBtn.style.cursor = 'default';
+        mcpRegStatusEl.innerHTML = __i18n.mcpRegisteredStatus;
+        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2716</span> ' + __i18n.mcpUnregister;
       } else {
         mcpRegStatusEl.innerHTML = '';
         registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">&#9889;</span> ' + __i18n.mcpRegister;
-        registerMcpDesktopBtn.disabled = false;
-        registerMcpDesktopBtn.style.opacity = '1';
-        registerMcpDesktopBtn.style.cursor = 'pointer';
       }
     }
 
@@ -2880,6 +3138,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (msg.type === 'mcpRegisterResult') {
         setMcpRegistered(msg.success);
       }
+      if (msg.type === 'mcpUnregisterResult') {
+        // On success, registered=false. On failure, keep current state.
+        setMcpRegistered(msg.success ? false : mcpAlreadyRegistered);
+      }
       if (msg.type === 'configValues') {
         curZoom = msg.zoom;
         curFontFamily = msg.fontFamily;
@@ -2896,6 +3158,133 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         workspacePath = msg.workspacePath || '';
         cellOverrides = msg.cellOverrides || {};
         defaultSteps = msg.defaultSteps || [];
+        // ── Tabs card render + lazy button wiring ──
+        var tabs = msg.tabs || [];
+        var activeTabId = (msg.activeTabId !== undefined && msg.activeTabId !== null) ? msg.activeTabId : -1;
+        var tabsList = document.getElementById('tabsList');
+        if (tabsList) {
+          if (tabs.length === 0) {
+            tabsList.innerHTML = '<div class="tabs-empty">No grid open. Click Open Grid below.</div>';
+          } else {
+            tabsList.innerHTML = '';
+            tabs.forEach(function(tab, idx) {
+              var item = document.createElement('div');
+              item.className = 'tab-item' + (tab.tabId === activeTabId ? ' active' : '');
+              item.dataset.tabId = String(tab.tabId);
+              item.title = 'Click to focus · Right-click or double-click to rename';
+              var label = document.createElement('span');
+              label.className = 'tab-item-label';
+              var defaultLabel = 'Tab ' + (idx + 1);
+              var labelText = (tab.name && tab.name.length > 0) ? tab.name : defaultLabel;
+              label.textContent = labelText;
+              var meta = document.createElement('span');
+              meta.className = 'tab-item-meta';
+              meta.textContent = tab.rows + '×' + tab.cols;
+              label.appendChild(meta);
+              var closeBtn = document.createElement('button');
+              closeBtn.className = 'tab-item-close';
+              closeBtn.textContent = '×';
+              closeBtn.title = 'Close tab';
+              if (tabs.length <= 1) closeBtn.disabled = true;
+              closeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (tabs.length <= 1) return;
+                vscode.postMessage({ type: 'removeTab', tabId: tab.tabId });
+              });
+              item.appendChild(label);
+              item.appendChild(closeBtn);
+              item.addEventListener('click', function() {
+                if (item.classList.contains('editing')) return;
+                vscode.postMessage({ type: 'switchTab', tabId: tab.tabId });
+              });
+              // Inline rename — keeps focus in the sidebar (no native dialog jump)
+              function startInlineRename() {
+                if (item.classList.contains('editing')) return;
+                item.classList.add('editing');
+                var input = document.createElement('input');
+                input.className = 'tab-item-input';
+                input.type = 'text';
+                input.value = tab.name || '';
+                input.placeholder = defaultLabel;
+                label.style.display = 'none';
+                closeBtn.style.display = 'none';
+                item.insertBefore(input, label);
+                // Defer focus so the contextmenu event finishes first
+                setTimeout(function() {
+                  input.focus();
+                  input.select();
+                }, 0);
+                var done = false;
+                function commit() {
+                  if (done) return;
+                  done = true;
+                  vscode.postMessage({ type: 'renameTab', tabId: tab.tabId, name: input.value });
+                  // Sidebar will re-render via configValues
+                }
+                function cancel() {
+                  if (done) return;
+                  done = true;
+                  item.classList.remove('editing');
+                  input.remove();
+                  label.style.display = '';
+                  closeBtn.style.display = '';
+                }
+                input.addEventListener('keydown', function(e) {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancel();
+                  }
+                });
+                input.addEventListener('blur', commit);
+                // Prevent input clicks from bubbling up to switchTab
+                input.addEventListener('click', function(e) { e.stopPropagation(); });
+                input.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+                input.addEventListener('dblclick', function(e) { e.stopPropagation(); });
+              }
+              item.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                startInlineRename();
+              });
+              item.addEventListener('dblclick', function(e) {
+                e.preventDefault();
+                startInlineRename();
+              });
+              tabsList.appendChild(item);
+            });
+          }
+        }
+        if (!window.__tgTabBtnsInit) {
+          window.__tgTabBtnsInit = true;
+          var nb = document.getElementById('newTabBtn');
+          if (nb) nb.addEventListener('click', function() {
+            vscode.postMessage({ type: 'newTab' });
+          });
+          var db = document.getElementById('duplicateTabBtn');
+          if (db) db.addEventListener('click', function() {
+            vscode.postMessage({ type: 'duplicateTab' });
+          });
+        }
+        // Surface "which tab am I editing?" in the Grid Size card header
+        var gridSizeActiveLabel = document.getElementById('gridSizeActiveLabel');
+        if (gridSizeActiveLabel) {
+          var activeText = '';
+          if (tabs.length > 0 && activeTabId !== -1) {
+            var activeIdx = tabs.findIndex(function(t) { return t.tabId === activeTabId; });
+            if (activeIdx >= 0) {
+              var activeTab = tabs[activeIdx];
+              var displayName = (activeTab.name && activeTab.name.length > 0)
+                ? activeTab.name
+                : ('Tab ' + (activeIdx + 1));
+              activeText = '→ ' + displayName;
+            }
+          } else if (tabs.length === 0) {
+            activeText = '(no tab open)';
+          }
+          gridSizeActiveLabel.textContent = activeText;
+        }
         updateSettingsUI();
         renderProjectList();
         renderPresetDropdown();

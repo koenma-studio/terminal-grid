@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.4.0] - 2026
+
+### Added
+- **Multiple Tab Support** (#3) — open many independent grids as separate editor tabs
+  - Sidebar **Tabs** card (collapsed by default, above Grid Size) with `+ New`, `⧉ Duplicate`, `× Close`
+  - Right-click or double-click a tab for inline rename (no native dialog; focus stays in sidebar)
+  - Per-tab isolation of labels, cell overrides, merged regions, startup steps, and custom name
+  - **Sparse global cell IDs** — MCP `sendToCell` / `readCell` keep same signature; LLMs that remember a cell ID stay correct as long as the tab is open
+  - `getGridInfo` extended with `tabs[]` + `activeTabId`; flat `rows`/`cols`/`cellCount`/`cellLabels` retained for backward compat
+  - Multi-tab restore across VS Code restarts via `lastTabs[]` snapshot
+  - Active tab indicator on Grid Size card header (`→ Tab 2`)
+  - Editor tab title uses 1-based display index matching sidebar
+- **VSCodium support** (#4) — linux-x64 `node-pty` prebuild bundled in VSIX so `require("node-pty")` resolves without network install
+- **Tab management commands**: `Terminal Grid: New Tab`, `Duplicate Active Tab`, `Close Active Tab`, `Reset All Tabs (clear zombies)`, `Reset Cell IDs`
+- **Security section** in README — all 8 language translations (en, ko, ja, zh-CN, de, es, fr, pt-BR)
+- Localized help tooltips for Tabs and MCP Registration cards in 7 languages
+
+### Changed
+- **MCP hygiene** (#2) — on activation, stale `terminal-grid` entries in Claude Desktop config whose referenced `mcp-server.js` no longer exists are quietly removed
+- `Open Grid` now preserves the active tab's identity: tab name, cell overrides, sidebar slot, and (when grid size unchanged) cell IDs all carry over
+- `loadPreset` writes to the active tab's namespace and keeps it in the same slot
+
+### Fixed
+- Sidebar flicker on Open Grid eliminated via atomic `PanelRegistry.replace` (single `onDidChange` fire)
+- Hidden tabs after reload now force-loaded shortly after first deserialize fires (option B self-heal), so the sidebar reflects all open grids almost immediately instead of after a 1.5s wait
+- Zombie webview panels (stale VS Code workbench state pointing to removed extension paths) cleaned up via deserialize fallback removal + activation-time self-heal
+- `dispose()` is idempotent and only clears `lastGrid`/`lastTabs` when the last panel closes
+- Rename UI moved from `vscode.window.showInputBox` to in-card inline `<input>` — focus no longer jumps to the editor's top bar
+
+### Security
+- README Security section documents: `127.0.0.1`-only listener, configurable port (`terminalGrid.apiPort`, default `7890`), config file paths written, and recommended uninstall procedure (`Unregister MCP from Claude Desktop` before removal; stale entries auto-cleanup on next load)
+- MCP registration remains explicit opt-in via the sidebar — no auto-registration on install (#2)
+
 ## [0.3.7] - 2026
 
 ### Added

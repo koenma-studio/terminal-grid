@@ -1,22 +1,22 @@
-"use strict";var Y=Object.create;var O=Object.defineProperty;var K=Object.getOwnPropertyDescriptor;var X=Object.getOwnPropertyNames;var Q=Object.getPrototypeOf,ee=Object.prototype.hasOwnProperty;var te=(c,e)=>{for(var s in e)O(c,s,{get:e[s],enumerable:!0})},z=(c,e,s,l)=>{if(e&&typeof e=="object"||typeof e=="function")for(let n of X(e))!ee.call(c,n)&&n!==s&&O(c,n,{get:()=>e[n],enumerable:!(l=K(e,n))||l.enumerable});return c};var T=(c,e,s)=>(s=c!=null?Y(Q(c)):{},z(e||!c||!c.__esModule?O(s,"default",{value:c,enumerable:!0}):s,c)),ne=c=>z(O({},"__esModule",{value:!0}),c);var fe={};te(fe,{activate:()=>ue,deactivate:()=>me});module.exports=ne(fe);var g=T(require("vscode")),A=T(require("path"));var a=T(require("vscode")),w=T(require("fs")),S=T(require("path")),F=T(require("os")),Z=T(require("child_process"));var u=T(require("vscode")),N=T(require("os")),L=T(require("fs")),M=T(require("path"));var $={"":null,Dracula:{name:"Dracula",background:"#282a36",foreground:"#f8f8f2",cursor:"#f8f8f2",cursorAccent:"#282a36",selectionBackground:"#44475a",black:"#21222c",brightBlack:"#6272a4",red:"#ff5555",brightRed:"#ff6e6e",green:"#50fa7b",brightGreen:"#69ff94",yellow:"#f1fa8c",brightYellow:"#ffffa5",blue:"#bd93f9",brightBlue:"#d6acff",magenta:"#ff79c6",brightMagenta:"#ff92df",cyan:"#8be9fd",brightCyan:"#a4ffff",white:"#f8f8f2",brightWhite:"#ffffff"},Monokai:{name:"Monokai",background:"#272822",foreground:"#f8f8f2",cursor:"#f8f8f0",cursorAccent:"#272822",selectionBackground:"#49483e",black:"#272822",brightBlack:"#75715e",red:"#f92672",brightRed:"#f92672",green:"#a6e22e",brightGreen:"#a6e22e",yellow:"#f4bf75",brightYellow:"#f4bf75",blue:"#66d9ef",brightBlue:"#66d9ef",magenta:"#ae81ff",brightMagenta:"#ae81ff",cyan:"#a1efe4",brightCyan:"#a1efe4",white:"#f8f8f2",brightWhite:"#f9f8f5"},"Solarized Dark":{name:"Solarized Dark",background:"#002b36",foreground:"#839496",cursor:"#839496",cursorAccent:"#002b36",selectionBackground:"#073642",black:"#073642",brightBlack:"#586e75",red:"#dc322f",brightRed:"#cb4b16",green:"#859900",brightGreen:"#586e75",yellow:"#b58900",brightYellow:"#657b83",blue:"#268bd2",brightBlue:"#839496",magenta:"#d33682",brightMagenta:"#6c71c4",cyan:"#2aa198",brightCyan:"#93a1a1",white:"#eee8d5",brightWhite:"#fdf6e3"},"Solarized Light":{name:"Solarized Light",background:"#fdf6e3",foreground:"#657b83",cursor:"#657b83",cursorAccent:"#fdf6e3",selectionBackground:"#eee8d5",black:"#073642",brightBlack:"#586e75",red:"#dc322f",brightRed:"#cb4b16",green:"#859900",brightGreen:"#586e75",yellow:"#b58900",brightYellow:"#657b83",blue:"#268bd2",brightBlue:"#839496",magenta:"#d33682",brightMagenta:"#6c71c4",cyan:"#2aa198",brightCyan:"#93a1a1",white:"#eee8d5",brightWhite:"#fdf6e3"},Nord:{name:"Nord",background:"#2e3440",foreground:"#d8dee9",cursor:"#d8dee9",cursorAccent:"#2e3440",selectionBackground:"#434c5e",black:"#3b4252",brightBlack:"#4c566a",red:"#bf616a",brightRed:"#bf616a",green:"#a3be8c",brightGreen:"#a3be8c",yellow:"#ebcb8b",brightYellow:"#ebcb8b",blue:"#81a1c1",brightBlue:"#81a1c1",magenta:"#b48ead",brightMagenta:"#b48ead",cyan:"#88c0d0",brightCyan:"#8fbcbb",white:"#e5e9f0",brightWhite:"#eceff4"},"One Dark":{name:"One Dark",background:"#282c34",foreground:"#abb2bf",cursor:"#528bff",cursorAccent:"#282c34",selectionBackground:"#3e4451",black:"#282c34",brightBlack:"#5c6370",red:"#e06c75",brightRed:"#e06c75",green:"#98c379",brightGreen:"#98c379",yellow:"#e5c07b",brightYellow:"#d19a66",blue:"#61afef",brightBlue:"#61afef",magenta:"#c678dd",brightMagenta:"#c678dd",cyan:"#56b6c2",brightCyan:"#56b6c2",white:"#abb2bf",brightWhite:"#ffffff"},"Gruvbox Dark":{name:"Gruvbox Dark",background:"#282828",foreground:"#ebdbb2",cursor:"#ebdbb2",cursorAccent:"#282828",selectionBackground:"#504945",black:"#282828",brightBlack:"#928374",red:"#cc241d",brightRed:"#fb4934",green:"#98971a",brightGreen:"#b8bb26",yellow:"#d79921",brightYellow:"#fabd2f",blue:"#458588",brightBlue:"#83a598",magenta:"#b16286",brightMagenta:"#d3869b",cyan:"#689d6a",brightCyan:"#8ec07c",white:"#a89984",brightWhite:"#ebdbb2"},"Tokyo Night":{name:"Tokyo Night",background:"#1a1b26",foreground:"#a9b1d6",cursor:"#c0caf5",cursorAccent:"#1a1b26",selectionBackground:"#33467c",black:"#15161e",brightBlack:"#414868",red:"#f7768e",brightRed:"#f7768e",green:"#9ece6a",brightGreen:"#9ece6a",yellow:"#e0af68",brightYellow:"#e0af68",blue:"#7aa2f7",brightBlue:"#7aa2f7",magenta:"#bb9af7",brightMagenta:"#bb9af7",cyan:"#7dcfff",brightCyan:"#7dcfff",white:"#a9b1d6",brightWhite:"#c0caf5"}},U=Object.keys($);function P(c){let e=$[c];if(!e)return null;let{name:s,...l}=e;return l}function R(c){return new Promise(e=>setTimeout(e,c))}var se=3e3,re=15e3,oe=200,ae=[/[❯>✻⏵›]\s*$/m,/aider>\s*$/m],H=(()=>{if(process.platform!=="win32")return 0;let c=N.release().split(".");return parseInt(c[2]||"0",10)})(),W=H>0&&H<22e3?"\r":"\x1B[13u",ie=["claude","codex","gemini","copilot","aider","claude --dangerously-skip-permissions","codex -s danger-full-access -a never"];function j(c){let e=c.trim();return ie.some(s=>e===s||e.startsWith(s+" "))}function le(c){let e=c.toLowerCase();return e.includes("powershell")||e.includes("pwsh")||e.includes("cmd")?`\r
-`:"\r"}function J(c,e,s,l,n){let t=c[n];return t?.startupSteps&&t.startupSteps.length>0?t.startupSteps:t?.startupCommand?[{type:"command",input:t.startupCommand}]:e[n]?[{type:"command",input:e[n]}]:s.length>0?s:l?[{type:"command",input:l}]:[]}var V={".ttf":"truetype",".otf":"opentype",".woff":"woff",".woff2":"woff2"},v=class c{constructor(e,s,l,n){this._terminals=[];this._outputBuffers=[];this._csiUMode=[];this._insideLlm=[];this._cellShellType=[];this._disposed=!1;this._stepGeneration={};this._pasteImages=[];this._panel=e,this._context=s,this._rows=l,this._cols=n;let t=u.workspace.workspaceFolders?.[0]?.name;this._panel.title=t?`${t} \u2014 ${u.l10n.t("Terminal Grid {0}\xD7{1}",l,n)}`:u.l10n.t("Terminal Grid {0}\xD7{1}",l,n);let r=s.globalState.get("mergedRegions",[]).filter(o=>o.startRow+o.rowSpan<=l&&o.startCol+o.colSpan<=n);this._hiddenCells=new Set;for(let o of r)for(let i=o.startRow;i<o.startRow+o.rowSpan;i++)for(let d=o.startCol;d<o.startCol+o.colSpan;d++)i===o.startRow&&d===o.startCol||this._hiddenCells.add(i*n+d);this._panel.webview.options={enableScripts:!0,localResourceRoots:[u.Uri.joinPath(s.extensionUri,"media")]},this._panel.webview.html=this._getHtml(),this._panel.webview.onDidReceiveMessage(async o=>{switch(o.type){case"ready":if(this._createTerminals(o.defaultCols,o.defaultRows),o.cellDims&&Array.isArray(o.cellDims))for(let d=0;d<o.cellDims.length&&d<this._terminals.length;d++){let p=o.cellDims[d];if(p?.cols&&p?.rows)try{this._terminals[d].pty.resize(p.cols,p.rows)}catch{}}this.loadCustomFonts(this._context.globalState.get("customFonts",[]));let i=this._context.globalState.get("cellOverrides",{});for(let[d,p]of Object.entries(i))if(p.bgColor||p.fgColor||p.fontFamily||p.themeName){let f=p.themeName?P(p.themeName):null;this.sendCellConfig(parseInt(d),p.bgColor||"",p.fgColor||"",p.fontFamily||"",p.themeName||"",f)}break;case"input":{let d=this._terminals[o.id]?.pty;d&&this._chunkedWrite(d,o.data);break}case"clipboardWrite":u.env.clipboard.writeText(o.text);break;case"pasteRequest":{let d=await u.env.clipboard.readText();if(d&&this._terminals[o.id]){let f=/\r?\n/.test(d)?"\x1B[200~"+d+"\x1B[201~":d;this._chunkedWrite(this._terminals[o.id].pty,f)}break}case"pasteImage":{let d=o.data.match(/^data:image\/([^;]+);base64,(.+)$/s);if(d&&this._terminals[o.id]){for(let h of this._pasteImages)try{L.unlinkSync(h)}catch{}this._pasteImages=[];let p=d[1]==="jpeg"?"jpg":d[1],f=M.join(N.tmpdir(),`tg-paste-${Date.now()}.${p}`);L.writeFileSync(f,Buffer.from(d[2],"base64")),this._pasteImages.push(f),this._chunkedWrite(this._terminals[o.id].pty,f)}break}case"resize":try{this._terminals[o.id]?.pty.resize(o.cols,o.rows)}catch{}break;case"clearTerminal":this._panel.webview.postMessage({type:"clear",id:o.id});break;case"killTerminal":try{this._terminals[o.id]?.pty.kill()}catch{}break;case"restartTerminal":this._restartTerminal(o.id);break;case"renameCell":{let d=this._context.globalState.get("cellLabels",[]),p=d[o.id]||"",f=await u.window.showInputBox({prompt:u.l10n.t("Rename cell {0}",o.id+1),value:p,placeHolder:u.l10n.t("Enter alias (empty to reset)")});f!==void 0&&(d[o.id]=f,await this._context.globalState.update("cellLabels",d),this.sendLabels(),u.commands.executeCommand("terminalGrid._refreshSidebar"));break}}}),this._configListener=u.workspace.onDidChangeConfiguration(o=>{if(o.affectsConfiguration("terminalGrid")){let i=u.workspace.getConfiguration("terminalGrid"),d=i.get("colorTheme","");this._panel.webview.postMessage({type:"configUpdate",zoom:i.get("zoomPercent",100),fontFamily:i.get("fontFamily",""),bgColor:i.get("backgroundColor",""),fgColor:i.get("foregroundColor",""),themeName:d,themeColors:P(d)})}}),this._panel.onDidDispose(()=>this.dispose()),this._panel.iconPath=u.Uri.joinPath(s.extensionUri,"images","sidebar.svg")}static{this.OUTPUT_BUFFER_SIZE=5e4}static{this.CSI_U_ENABLE=/\x1b\[>[0-9]+u/}static{this.CSI_U_DISABLE=/\x1b\[<[0-9]*u/}static _getLog(){return c._log||(c._log=u.window.createOutputChannel("Terminal Grid")),c._log}static _getNodePty(){if(c._nodePty===void 0)try{c._nodePty=require("node-pty")}catch{c._nodePty=null}return c._nodePty}static getAvailableShells(){let e=[{name:"IDE Default",path:"",args:[]}];try{let r=function(p){try{if(/[/\\]/.test(p))return l.existsSync(p);let f=process.platform==="win32"?`where ${p}`:`which ${p}`;return n.execSync(f,{stdio:"ignore",timeout:500}),!0}catch{return!1}};var s=r;let l=require("fs"),n=require("child_process"),t=new Set,o=process.platform==="win32"?"windows":process.platform==="darwin"?"osx":"linux",i=u.workspace.getConfiguration(`terminal.integrated.profiles.${o}`);if(i)for(let p of Object.keys(i))try{let f=i.get(p);if(!f||typeof f!="object")continue;let h=Array.isArray(f.path)?f.path[0]:f.path;h&&r(h)&&(e.push({name:p,path:h,args:f.args||[]}),t.add(h.toLowerCase()))}catch{}let d=process.platform==="win32"?[{name:"PowerShell",path:"powershell.exe",args:["-NoLogo"]},{name:"PowerShell 7",path:"pwsh.exe",args:["-NoLogo"]},{name:"Command Prompt",path:"cmd.exe",args:[]},{name:"Git Bash",path:"C:\\Program Files\\Git\\bin\\bash.exe",args:["--login"]},{name:"WSL",path:"wsl.exe",args:[]}]:[{name:"Bash",path:"/bin/bash",args:["--login"]},{name:"Zsh",path:"/bin/zsh",args:["--login"]},{name:"Fish",path:"/usr/bin/fish",args:[]},{name:"sh",path:"/bin/sh",args:[]}];for(let p of d)!t.has(p.path.toLowerCase())&&r(p.path)&&(e.push(p),t.add(p.path.toLowerCase()))}catch{}return e}_resolveShell(e){if(!e)return process.platform==="win32"?c._getNodePty()?{path:"powershell.exe",args:["-NoLogo","-NoProfile"]}:{path:process.env.COMSPEC||"cmd.exe",args:[]}:{path:process.env.SHELL||"bash",args:[]};let l=c.getAvailableShells().find(t=>t.path===e||t.name===e);if(l&&l.path)return{path:l.path,args:l.args};let n=e.toLowerCase();return n.includes("powershell")||n.includes("pwsh")?{path:e,args:["-NoLogo"]}:n.includes("bash")||n.includes("zsh")?{path:e,args:["--login"]}:{path:e,args:[]}}static createOrShow(e,s,l){c.currentPanel&&c.currentPanel.dispose();let n=u.window.createWebviewPanel("terminalGrid",u.l10n.t("Terminal Grid {0}\xD7{1}",s,l),u.ViewColumn.One,{enableScripts:!0,retainContextWhenHidden:!0,localResourceRoots:[u.Uri.joinPath(e.extensionUri,"media")]});c.currentPanel=new c(n,e,s,l),e.globalState.update("lastGrid",{rows:s,cols:l}),u.commands.executeCommand("terminalGrid._refreshSidebar")}static revive(e,s,l,n){c.currentPanel&&c.currentPanel.dispose(),c.currentPanel=new c(e,s,l,n),s.globalState.update("lastGrid",{rows:l,cols:n}),u.commands.executeCommand("terminalGrid._refreshSidebar")}_enterSeq(e){return this._csiUMode[e]||this._insideLlm[e]?W:le(this._cellShellType[e]||"")}broadcastInput(e){for(let s of this._terminals)if(!this._hiddenCells.has(s.id)){if(this._insideLlm[s.id])this._typeToCell(s.id,e).then(()=>R(50)).then(()=>{s.pty.write(this._enterSeq(s.id))});else{let n=/\r?\n/.test(e)?"\x1B[200~"+e+"\x1B[201~":e;this._chunkedWrite(s.pty,n+this._enterSeq(s.id))}j(e)&&(this._insideLlm[s.id]=!0),e.trim()==="exit"&&(this._insideLlm[s.id]=!1)}}sendToCell(e,s){let l=this._terminals[e];return l?(this._chunkedWrite(l.pty,s),!0):!1}sendInputToCell(e,s){let l=this._terminals[e];if(!l)return!1;if(this._insideLlm[e])this._typeToCell(e,s).then(()=>R(50)).then(()=>{l.pty.write(this._enterSeq(e))});else{let t=/\r?\n/.test(s)?"\x1B[200~"+s+"\x1B[201~":s;this._chunkedWrite(l.pty,t+this._enterSeq(e))}return j(s)&&(this._insideLlm[e]=!0),s.trim()==="exit"&&(this._insideLlm[e]=!1),!0}static _stripAnsi(e){return e.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g,"").replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g,"").replace(/\x1b[()][0-9A-Z]/g,"").replace(/\x1b[78DEHM]/g,"").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,"").replace(/\r\n/g,`
+"use strict";var ve=Object.create;var W=Object.defineProperty;var he=Object.getOwnPropertyDescriptor;var we=Object.getOwnPropertyNames;var ye=Object.getPrototypeOf,Ce=Object.prototype.hasOwnProperty;var xe=(o,e)=>{for(var n in e)W(o,n,{get:e[n],enumerable:!0})},re=(o,e,n,a)=>{if(e&&typeof e=="object"||typeof e=="function")for(let s of we(e))!Ce.call(o,s)&&s!==n&&W(o,s,{get:()=>e[s],enumerable:!(a=he(e,s))||a.enumerable});return o};var T=(o,e,n)=>(n=o!=null?ve(ye(o)):{},re(e||!o||!o.__esModule?W(n,"default",{value:o,enumerable:!0}):n,o)),Se=o=>re(W({},"__esModule",{value:!0}),o);var Ne={};xe(Ne,{activate:()=>Oe,deactivate:()=>Be});module.exports=Se(Ne);var u=T(require("vscode")),U=T(require("path")),P=T(require("fs")),me=T(require("os"));var i=T(require("vscode")),_=T(require("fs")),R=T(require("path")),Y=T(require("os")),ge=T(require("child_process"));var y=T(require("vscode")),J=T(require("os")),G=T(require("fs")),$=T(require("path"));var ae={"":null,Dracula:{name:"Dracula",background:"#282a36",foreground:"#f8f8f2",cursor:"#f8f8f2",cursorAccent:"#282a36",selectionBackground:"#44475a",black:"#21222c",brightBlack:"#6272a4",red:"#ff5555",brightRed:"#ff6e6e",green:"#50fa7b",brightGreen:"#69ff94",yellow:"#f1fa8c",brightYellow:"#ffffa5",blue:"#bd93f9",brightBlue:"#d6acff",magenta:"#ff79c6",brightMagenta:"#ff92df",cyan:"#8be9fd",brightCyan:"#a4ffff",white:"#f8f8f2",brightWhite:"#ffffff"},Monokai:{name:"Monokai",background:"#272822",foreground:"#f8f8f2",cursor:"#f8f8f0",cursorAccent:"#272822",selectionBackground:"#49483e",black:"#272822",brightBlack:"#75715e",red:"#f92672",brightRed:"#f92672",green:"#a6e22e",brightGreen:"#a6e22e",yellow:"#f4bf75",brightYellow:"#f4bf75",blue:"#66d9ef",brightBlue:"#66d9ef",magenta:"#ae81ff",brightMagenta:"#ae81ff",cyan:"#a1efe4",brightCyan:"#a1efe4",white:"#f8f8f2",brightWhite:"#f9f8f5"},"Solarized Dark":{name:"Solarized Dark",background:"#002b36",foreground:"#839496",cursor:"#839496",cursorAccent:"#002b36",selectionBackground:"#073642",black:"#073642",brightBlack:"#586e75",red:"#dc322f",brightRed:"#cb4b16",green:"#859900",brightGreen:"#586e75",yellow:"#b58900",brightYellow:"#657b83",blue:"#268bd2",brightBlue:"#839496",magenta:"#d33682",brightMagenta:"#6c71c4",cyan:"#2aa198",brightCyan:"#93a1a1",white:"#eee8d5",brightWhite:"#fdf6e3"},"Solarized Light":{name:"Solarized Light",background:"#fdf6e3",foreground:"#657b83",cursor:"#657b83",cursorAccent:"#fdf6e3",selectionBackground:"#eee8d5",black:"#073642",brightBlack:"#586e75",red:"#dc322f",brightRed:"#cb4b16",green:"#859900",brightGreen:"#586e75",yellow:"#b58900",brightYellow:"#657b83",blue:"#268bd2",brightBlue:"#839496",magenta:"#d33682",brightMagenta:"#6c71c4",cyan:"#2aa198",brightCyan:"#93a1a1",white:"#eee8d5",brightWhite:"#fdf6e3"},Nord:{name:"Nord",background:"#2e3440",foreground:"#d8dee9",cursor:"#d8dee9",cursorAccent:"#2e3440",selectionBackground:"#434c5e",black:"#3b4252",brightBlack:"#4c566a",red:"#bf616a",brightRed:"#bf616a",green:"#a3be8c",brightGreen:"#a3be8c",yellow:"#ebcb8b",brightYellow:"#ebcb8b",blue:"#81a1c1",brightBlue:"#81a1c1",magenta:"#b48ead",brightMagenta:"#b48ead",cyan:"#88c0d0",brightCyan:"#8fbcbb",white:"#e5e9f0",brightWhite:"#eceff4"},"One Dark":{name:"One Dark",background:"#282c34",foreground:"#abb2bf",cursor:"#528bff",cursorAccent:"#282c34",selectionBackground:"#3e4451",black:"#282c34",brightBlack:"#5c6370",red:"#e06c75",brightRed:"#e06c75",green:"#98c379",brightGreen:"#98c379",yellow:"#e5c07b",brightYellow:"#d19a66",blue:"#61afef",brightBlue:"#61afef",magenta:"#c678dd",brightMagenta:"#c678dd",cyan:"#56b6c2",brightCyan:"#56b6c2",white:"#abb2bf",brightWhite:"#ffffff"},"Gruvbox Dark":{name:"Gruvbox Dark",background:"#282828",foreground:"#ebdbb2",cursor:"#ebdbb2",cursorAccent:"#282828",selectionBackground:"#504945",black:"#282828",brightBlack:"#928374",red:"#cc241d",brightRed:"#fb4934",green:"#98971a",brightGreen:"#b8bb26",yellow:"#d79921",brightYellow:"#fabd2f",blue:"#458588",brightBlue:"#83a598",magenta:"#b16286",brightMagenta:"#d3869b",cyan:"#689d6a",brightCyan:"#8ec07c",white:"#a89984",brightWhite:"#ebdbb2"},"Tokyo Night":{name:"Tokyo Night",background:"#1a1b26",foreground:"#a9b1d6",cursor:"#c0caf5",cursorAccent:"#1a1b26",selectionBackground:"#33467c",black:"#15161e",brightBlack:"#414868",red:"#f7768e",brightRed:"#f7768e",green:"#9ece6a",brightGreen:"#9ece6a",yellow:"#e0af68",brightYellow:"#e0af68",blue:"#7aa2f7",brightBlue:"#7aa2f7",magenta:"#bb9af7",brightMagenta:"#bb9af7",cyan:"#7dcfff",brightCyan:"#7dcfff",white:"#a9b1d6",brightWhite:"#c0caf5"}},ie=Object.keys(ae);function A(o){let e=ae[o];if(!e)return null;let{name:n,...a}=e;return a}var oe=T(require("vscode")),q=class{constructor(){this._panels=new Map;this._onDidChange=new oe.EventEmitter;this.onDidChange=this._onDidChange.event}register(e,n,a){if(a!==void 0&&a>=0&&a<=this._panels.size){let s=Array.from(this._panels.entries());s.splice(a,0,[e,n]),this._panels=new Map(s)}else this._panels.set(e,n);this._activeTabId=e,this._onDidChange.fire()}unregister(e,n){if(n!==void 0&&this._panels.get(e)!==n)return;let a=this._panels.delete(e);if(this._activeTabId===e){let s=Array.from(this._panels.keys());this._activeTabId=s.length>0?s[s.length-1]:void 0}a&&this._onDidChange.fire()}replace(e,n,a){let s=Array.from(this._panels.entries()),t=s.findIndex(([r])=>r===e);t>=0?s[t]=[n,a]:s.push([n,a]),this._panels=new Map(s),this._activeTabId=n,this._onDidChange.fire()}setActive(e){this._panels.has(e)&&this._activeTabId!==e&&(this._activeTabId=e,this._onDidChange.fire())}getActive(){return this._activeTabId!==void 0?this._panels.get(this._activeTabId):void 0}getActiveTabId(){return this._activeTabId}get(e){return this._panels.get(e)}has(e){return this._panels.has(e)}size(){return this._panels.size}all(){return Array.from(this._panels.values())}entries(){return Array.from(this._panels.entries())}disposeAll(){let e=Array.from(this._panels.values());for(let n of e)try{n.dispose()}catch{}this._panels.clear(),this._activeTabId=void 0}},w=new q,E=class o{static{this.KEY="nextTabId"}static next(e){let n=e.globalState.get(o.KEY,0);return e.globalState.update(o.KEY,n+1),n}static peek(e){return e.globalState.get(o.KEY,0)}static reset(e){return e.globalState.update(o.KEY,0)}};var Z=class{init(e){this._ctx=e}get ctx(){if(!this._ctx)throw new Error("TabStateStore not initialized");return this._ctx}getCellOverrides(e){return this.ctx.globalState.get(`cellOverrides_${e}`,{})}setCellOverrides(e,n){return this.ctx.globalState.update(`cellOverrides_${e}`,n)}getCellLabels(e){return this.ctx.globalState.get(`cellLabels_${e}`,[])}setCellLabels(e,n){return this.ctx.globalState.update(`cellLabels_${e}`,n)}getMergedRegions(e){return this.ctx.globalState.get(`mergedRegions_${e}`,[])}setMergedRegions(e,n){return this.ctx.globalState.update(`mergedRegions_${e}`,n)}getDefaultSteps(e){return this.ctx.globalState.get(`defaultSteps_${e}`,[])}setDefaultSteps(e,n){return this.ctx.globalState.update(`defaultSteps_${e}`,n)}getDefaultCommand(e){return this.ctx.globalState.get(`defaultCommand_${e}`,"")}setDefaultCommand(e,n){return this.ctx.globalState.update(`defaultCommand_${e}`,n)}getStartupCommands(e){return this.ctx.globalState.get(`startupCommands_${e}`,[])}setStartupCommands(e,n){return this.ctx.globalState.update(`startupCommands_${e}`,n)}getTabName(e){return this.ctx.globalState.get(`tabName_${e}`,"")}setTabName(e,n){return this.ctx.globalState.update(`tabName_${e}`,n)}async deleteTab(e){let n=[`cellOverrides_${e}`,`cellLabels_${e}`,`mergedRegions_${e}`,`defaultSteps_${e}`,`defaultCommand_${e}`,`startupCommands_${e}`,`tabName_${e}`];for(let a of n)await this.ctx.globalState.update(a,void 0)}async cloneTab(e,n){await this.setCellOverrides(n,JSON.parse(JSON.stringify(this.getCellOverrides(e)))),await this.setCellLabels(n,[...this.getCellLabels(e)]),await this.setMergedRegions(n,JSON.parse(JSON.stringify(this.getMergedRegions(e)))),await this.setDefaultSteps(n,JSON.parse(JSON.stringify(this.getDefaultSteps(e)))),await this.setDefaultCommand(n,this.getDefaultCommand(e)),await this.setStartupCommands(n,JSON.parse(JSON.stringify(this.getStartupCommands(e))))}async migrateOnce(){if(this.ctx.globalState.get("multiTabMigrationDone",!1))return;let n=this.ctx.globalState.get("cellOverrides",{}),a=this.ctx.globalState.get("cellLabels",[]),s=this.ctx.globalState.get("mergedRegions",[]),t=this.ctx.globalState.get("defaultSteps",[]),r=this.ctx.globalState.get("defaultCommand",""),g=this.ctx.globalState.get("startupCommands",[]);await this.setCellOverrides(0,n),await this.setCellLabels(0,a),await this.setMergedRegions(0,s),await this.setDefaultSteps(0,t),await this.setDefaultCommand(0,r),await this.setStartupCommands(0,g),await this.ctx.globalState.update("multiTabMigrationDone",!0)}},p=new Z;var X=class o{static{this.KEY="nextGlobalCellId"}allocate(e,n){let a=e.globalState.get(o.KEY,0),s=[];for(let t=0;t<n;t++)s.push(a+t);return e.globalState.update(o.KEY,a+n),s}peek(e){return e.globalState.get(o.KEY,0)}reset(e){return e.globalState.update(o.KEY,0)}resolve(e){for(let[n,a]of w.entries()){let t=a.getCellIds().indexOf(e);if(t!==-1)return{tabId:n,localCellId:t}}return null}},L=new X;function O(o){return new Promise(e=>setTimeout(e,o))}var _e=3e3,ke=15e3,Te=200,Ie=[/[❯>✻⏵›]\s*$/m,/aider>\s*$/m],le=(()=>{if(process.platform!=="win32")return 0;let o=J.release().split(".");return parseInt(o[2]||"0",10)})(),de=le>0&&le<22e3?"\r":"\x1B[13u",Ee=["claude","codex","gemini","copilot","aider","claude --dangerously-skip-permissions","codex -s danger-full-access -a never"];function Q(o){let e=o.trim();return Ee.some(n=>e===n||e.startsWith(n+" "))}function Re(o){let e=o.toLowerCase();return e.includes("powershell")||e.includes("pwsh")||e.includes("cmd")?`\r
+`:"\r"}function ce(o,e,n,a,s){let t=o[s];return t?.startupSteps&&t.startupSteps.length>0?t.startupSteps:t?.startupCommand?[{type:"command",input:t.startupCommand}]:e[s]?[{type:"command",input:e[s]}]:n.length>0?n:a?[{type:"command",input:a}]:[]}var pe={".ttf":"truetype",".otf":"opentype",".woff":"woff",".woff2":"woff2"},x=class o{constructor(e,n,a,s,t,r){this._cellIds=[];this._terminals=[];this._outputBuffers=[];this._csiUMode=[];this._insideLlm=[];this._cellShellType=[];this._disposed=!1;this._stepGeneration={};this._pasteImages=[];this._panel=e,this._context=n,this._rows=a,this._cols=s,this._tabId=t,this._cellIds=r,this._panel.title=y.l10n.t("Terminal Grid {0}\xD7{1}",a,s),this._registryListener=w.onDidChange(()=>{this._disposed||this.refreshTitle()});let g=p.getMergedRegions(t).filter(l=>l.startRow+l.rowSpan<=a&&l.startCol+l.colSpan<=s);this._hiddenCells=new Set;for(let l of g)for(let b=l.startRow;b<l.startRow+l.rowSpan;b++)for(let m=l.startCol;m<l.startCol+l.colSpan;m++)b===l.startRow&&m===l.startCol||this._hiddenCells.add(b*s+m);this._panel.webview.options={enableScripts:!0,localResourceRoots:[y.Uri.joinPath(n.extensionUri,"media")]},this._panel.webview.html=this._getHtml(),this._panel.webview.onDidReceiveMessage(async l=>{switch(l.type){case"ready":if(this._createTerminals(l.defaultCols,l.defaultRows),l.cellDims&&Array.isArray(l.cellDims))for(let m=0;m<l.cellDims.length&&m<this._terminals.length;m++){let d=l.cellDims[m];if(d?.cols&&d?.rows)try{this._terminals[m].pty.resize(d.cols,d.rows)}catch{}}this.loadCustomFonts(this._context.globalState.get("customFonts",[]));let b=p.getCellOverrides(this._tabId);for(let[m,d]of Object.entries(b))if(d.bgColor||d.fgColor||d.fontFamily||d.themeName){let f=d.themeName?A(d.themeName):null;this.sendCellConfig(parseInt(m),d.bgColor||"",d.fgColor||"",d.fontFamily||"",d.themeName||"",f)}break;case"input":{let m=this._terminals[l.id]?.pty;m&&this._chunkedWrite(m,l.data);break}case"clipboardWrite":y.env.clipboard.writeText(l.text);break;case"pasteRequest":{let m=await y.env.clipboard.readText();if(m&&this._terminals[l.id]){let f=/\r?\n/.test(m)?"\x1B[200~"+m+"\x1B[201~":m;this._chunkedWrite(this._terminals[l.id].pty,f)}break}case"pasteImage":{let m=l.data.match(/^data:image\/([^;]+);base64,(.+)$/s);if(m&&this._terminals[l.id]){for(let v of this._pasteImages)try{G.unlinkSync(v)}catch{}this._pasteImages=[];let d=m[1]==="jpeg"?"jpg":m[1],f=$.join(J.tmpdir(),`tg-paste-${Date.now()}.${d}`);G.writeFileSync(f,Buffer.from(m[2],"base64")),this._pasteImages.push(f),this._chunkedWrite(this._terminals[l.id].pty,f)}break}case"resize":try{this._terminals[l.id]?.pty.resize(l.cols,l.rows)}catch{}break;case"clearTerminal":this._panel.webview.postMessage({type:"clear",id:l.id});break;case"killTerminal":try{this._terminals[l.id]?.pty.kill()}catch{}break;case"restartTerminal":this._restartTerminal(l.id);break;case"renameCell":{let m=p.getCellLabels(this._tabId),d=m[l.id]||"",f=await y.window.showInputBox({prompt:y.l10n.t("Rename cell {0}",l.id+1),value:d,placeHolder:y.l10n.t("Enter alias (empty to reset)")});f!==void 0&&(m[l.id]=f,await p.setCellLabels(this._tabId,m),this.sendLabels(),y.commands.executeCommand("terminalGrid._refreshSidebar"));break}}}),this._configListener=y.workspace.onDidChangeConfiguration(l=>{if(l.affectsConfiguration("terminalGrid")){let b=y.workspace.getConfiguration("terminalGrid"),m=b.get("colorTheme","");this._panel.webview.postMessage({type:"configUpdate",zoom:b.get("zoomPercent",100),fontFamily:b.get("fontFamily",""),bgColor:b.get("backgroundColor",""),fgColor:b.get("foregroundColor",""),themeName:m,themeColors:A(m)})}}),this._panel.onDidDispose(()=>this.dispose()),this._panel.onDidChangeViewState(l=>{this._disposed||l.webviewPanel.active&&(w.setActive(this._tabId),y.commands.executeCommand("terminalGrid._refreshSidebar"))}),this._panel.iconPath=y.Uri.joinPath(n.extensionUri,"images","sidebar.svg")}static get currentPanel(){return w.getActive()}static{this.OUTPUT_BUFFER_SIZE=5e4}static{this.CSI_U_ENABLE=/\x1b\[>[0-9]+u/}static{this.CSI_U_DISABLE=/\x1b\[<[0-9]*u/}static _getLog(){return o._log||(o._log=y.window.createOutputChannel("Terminal Grid")),o._log}static _getNodePty(){if(o._nodePty===void 0)try{o._nodePty=require("node-pty")}catch{o._nodePty=null}return o._nodePty}static getAvailableShells(){let e=[{name:"IDE Default",path:"",args:[]}];try{let r=function(m){try{if(/[/\\]/.test(m))return a.existsSync(m);let d=process.platform==="win32"?`where ${m}`:`which ${m}`;return s.execSync(d,{stdio:"ignore",timeout:500}),!0}catch{return!1}};var n=r;let a=require("fs"),s=require("child_process"),t=new Set,g=process.platform==="win32"?"windows":process.platform==="darwin"?"osx":"linux",l=y.workspace.getConfiguration(`terminal.integrated.profiles.${g}`);if(l)for(let m of Object.keys(l))try{let d=l.get(m);if(!d||typeof d!="object")continue;let f=Array.isArray(d.path)?d.path[0]:d.path;f&&r(f)&&(e.push({name:m,path:f,args:d.args||[]}),t.add(f.toLowerCase()))}catch{}let b=process.platform==="win32"?[{name:"PowerShell",path:"powershell.exe",args:["-NoLogo"]},{name:"PowerShell 7",path:"pwsh.exe",args:["-NoLogo"]},{name:"Command Prompt",path:"cmd.exe",args:[]},{name:"Git Bash",path:"C:\\Program Files\\Git\\bin\\bash.exe",args:["--login"]},{name:"WSL",path:"wsl.exe",args:[]}]:[{name:"Bash",path:"/bin/bash",args:["--login"]},{name:"Zsh",path:"/bin/zsh",args:["--login"]},{name:"Fish",path:"/usr/bin/fish",args:[]},{name:"sh",path:"/bin/sh",args:[]}];for(let m of b)!t.has(m.path.toLowerCase())&&r(m.path)&&(e.push(m),t.add(m.path.toLowerCase()))}catch{}return e}_resolveShell(e){if(!e)return process.platform==="win32"?o._getNodePty()?{path:"powershell.exe",args:["-NoLogo","-NoProfile"]}:{path:process.env.COMSPEC||"cmd.exe",args:[]}:{path:process.env.SHELL||"bash",args:[]};let a=o.getAvailableShells().find(t=>t.path===e||t.name===e);if(a&&a.path)return{path:a.path,args:a.args};let s=e.toLowerCase();return s.includes("powershell")||s.includes("pwsh")?{path:e,args:["-NoLogo"]}:s.includes("bash")||s.includes("zsh")?{path:e,args:["--login"]}:{path:e,args:[]}}static createOrShow(e,n,a,s){let t=s?.forceNewTab?null:w.getActive(),r,g,l;if(t){l=t.getTabId(),r=s?.tabIdOverride??l;let d=t.getRows()*t.getCols()===n*a;g=s?.cellIdsOverride??(d?t.getCellIds():L.allocate(e,n*a))}else{if(s?.tabIdOverride!==void 0)r=s.tabIdOverride;else{let d=e.globalState.get("pendingFirstTabId");d!=null?(r=d,e.globalState.update("pendingFirstTabId",void 0)):r=E.next(e)}g=s?.cellIdsOverride??L.allocate(e,n*a)}let b=y.window.createWebviewPanel("terminalGrid",y.l10n.t("Terminal Grid {0}\xD7{1}",n,a),y.ViewColumn.One,{enableScripts:!0,retainContextWhenHidden:!0,localResourceRoots:[y.Uri.joinPath(e.extensionUri,"media")]}),m=new o(b,e,n,a,r,g);return t&&l!==void 0?(w.replace(l,r,m),t.dispose()):w.register(r,m,s?.positionOverride),o._persistTabs(e),r}static revive(e,n,a,s,t,r){let g;if(t===void 0){let d=w.getActive();if(d){let f=d.getTabId(),v=w.entries().findIndex(([c])=>c===f);v>=0&&(g=v),d.dispose()}}let l=t??E.next(n),b=r??L.allocate(n,a*s),m=new o(e,n,a,s,l,b);w.register(l,m,g),o._persistTabs(n),y.commands.executeCommand("terminalGrid._refreshSidebar")}static persistTabs(e){o._persistTabs(e)}static _persistTabs(e){let n=w.entries().map(([a,s])=>({tabId:a,rows:s.getRows(),cols:s.getCols(),cellIds:s.getCellIds()}));if(e.globalState.update("lastTabs",n),n.length>0){let a=n[n.length-1];e.globalState.update("lastGrid",{rows:a.rows,cols:a.cols})}}static _formatTitle(e,n,a,s){let t=y.workspace.workspaceFolders?.[0]?.name,r=y.l10n.t("Terminal Grid {0}\xD7{1}",e,n),g=s&&s.length>0?s:y.l10n.t("Tab {0}",a+1);return t?`${t} \u2014 ${r} \xB7 ${g}`:`${r} \xB7 ${g}`}_enterSeq(e){return this._csiUMode[e]||this._insideLlm[e]?de:Re(this._cellShellType[e]||"")}broadcastInput(e){for(let n of this._terminals)if(!this._hiddenCells.has(n.id)){if(this._insideLlm[n.id])this._typeToCell(n.id,e).then(()=>O(50)).then(()=>{n.pty.write(this._enterSeq(n.id))});else{let s=/\r?\n/.test(e)?"\x1B[200~"+e+"\x1B[201~":e;this._chunkedWrite(n.pty,s+this._enterSeq(n.id))}Q(e)&&(this._insideLlm[n.id]=!0),e.trim()==="exit"&&(this._insideLlm[n.id]=!1)}}sendToCell(e,n){let a=this._terminals[e];return a?(this._chunkedWrite(a.pty,n),!0):!1}sendInputToCell(e,n){let a=this._terminals[e];if(!a)return!1;if(this._insideLlm[e])this._typeToCell(e,n).then(()=>O(50)).then(()=>{a.pty.write(this._enterSeq(e))});else{let t=/\r?\n/.test(n)?"\x1B[200~"+n+"\x1B[201~":n;this._chunkedWrite(a.pty,t+this._enterSeq(e))}return Q(n)&&(this._insideLlm[e]=!0),n.trim()==="exit"&&(this._insideLlm[e]=!1),!0}static _stripAnsi(e){return e.replace(/\x1b\[[0-9;?]*[a-zA-Z]/g,"").replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g,"").replace(/\x1b[()][0-9A-Z]/g,"").replace(/\x1b[78DEHM]/g,"").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,"").replace(/\r\n/g,`
 `).replace(/\r/g,`
 `).replace(/\n{3,}/g,`
 
-`)}readCell(e,s){if(this._hiddenCells.has(e))return null;let l=this._outputBuffers[e];if(l===void 0)return null;let n=c._stripAnsi(l);return s===void 0?n:s<=0?"":n.split(`
-`).slice(-s).join(`
-`)}getCellCount(){return this._terminals.length}getRows(){return this._rows}getCols(){return this._cols}getCellLabels(){let e=this._context.globalState.get("cellLabels",[]),s=this._rows*this._cols;return Array.from({length:s},(l,n)=>e[n]||String(n+1))}sendCellConfig(e,s,l,n,t,r){this._panel.webview.postMessage({type:"cellConfig",id:e,bgColor:s,fgColor:l,fontFamily:n,themeName:t??"",themeColors:r??null})}clearCellOverrides(){this._panel.webview.postMessage({type:"clearCellOverrides"})}sendLabels(){let e=this._context.globalState.get("cellLabels",[]);this._panel.webview.postMessage({type:"setLabels",labels:e})}loadCustomFonts(e){for(let s of e){let l=this._readFontBase64(s.path);if(l){let n=M.extname(s.path).toLowerCase();this._panel.webview.postMessage({type:"loadFont",name:s.name,data:l,format:V[n]||"truetype"})}}}_readFontBase64(e){try{return L.readFileSync(e).toString("base64")}catch{return null}}_spawnPty(e,s,l,n,t){let r=this._resolveShell(t);if(e){let d=e.spawn(r.path,r.args,{name:"xterm-256color",cols:s,rows:l,cwd:n,env:process.env});return{onData:p=>{d.onData(p)},write:p=>d.write(p),resize:(p,f)=>d.resize(p,f),kill:()=>d.kill()}}let{spawn:o}=require("child_process"),i=o(r.path,r.args,{cwd:n,env:process.env,windowsHide:!0});return{onData:d=>{i.stdout?.on("data",p=>d(p.toString())),i.stderr?.on("data",p=>d(p.toString()))},write:d=>{i.stdin?.write(d)},resize:()=>{},kill:()=>i.kill()}}_createTerminals(e,s){let l=u.workspace.workspaceFolders?.[0]?.uri.fsPath||process.env.USERPROFILE||process.env.HOME||".",n=this._rows*this._cols,t=c._getNodePty();t||u.window.showWarningMessage(u.l10n.t("node-pty not available. Falling back to basic shell (limited features)."));let r=this._context.globalState.get("startupCommands",[]),o=[];for(let m of r)if(typeof m=="string")o.push(m);else if(m&&typeof m=="object"&&"command"in m){let x=m;for(let y=0;y<(x.count||1);y++)o.push(x.command)}let i=this._context.globalState.get("defaultCommand",""),d=this._context.globalState.get("defaultSteps",[]),p=e||80,f=s||24,h=u.workspace.getConfiguration("terminalGrid").get("shellType",""),k=this._context.globalState.get("cellOverrides",{});for(let m=0;m<n;m++){if(this._hiddenCells.has(m)){let E={onData(){},write(){},resize(){},kill(){}};this._terminals.push({id:m,pty:E}),this._outputBuffers[m]="",this._cellShellType[m]="",this._insideLlm[m]=!1,this._csiUMode[m]=!1;continue}let x=k[m]?.shellType||h||"",y=this._spawnPty(t,p,f,l,x||void 0),b=m,C=J(k,o,d,i,m);this._cellShellType[b]=x,this._insideLlm[b]=!1,this._outputBuffers[b]="",this._csiUMode[b]=!1;let _=!1;y.onData(E=>{this._disposed||(c.CSI_U_ENABLE.test(E)&&(this._csiUMode[b]=!0),c.CSI_U_DISABLE.test(E)&&(this._csiUMode[b]=!1),this._outputBuffers[b]=(this._outputBuffers[b]||"")+E,this._outputBuffers[b].length>c.OUTPUT_BUFFER_SIZE&&(this._outputBuffers[b]=this._outputBuffers[b].slice(-c.OUTPUT_BUFFER_SIZE)),this._panel.webview.postMessage({type:"output",id:b,data:E}),!_&&C.length>0&&(_=!0,this._executeSteps(b,C,this._cellShellType[b]||"")))}),this._terminals.push({id:m,pty:y})}this.sendLabels()}_restartTerminal(e){let s=this._terminals[e];if(!s)return;try{s.pty.kill()}catch{}this._panel.webview.postMessage({type:"reset",id:e});let l=u.workspace.workspaceFolders?.[0]?.uri.fsPath||process.env.USERPROFILE||process.env.HOME||".",n=u.workspace.getConfiguration("terminalGrid").get("shellType",""),t=this._context.globalState.get("cellOverrides",{}),r=t[e]?.shellType||n||"",o=this._spawnPty(c._getNodePty(),80,24,l,r||void 0),i=this._context.globalState.get("startupCommands",[]),d=[];for(let m of i)if(typeof m=="string")d.push(m);else if(m&&typeof m=="object"&&"command"in m){let x=m;for(let y=0;y<(x.count||1);y++)d.push(x.command)}let p=this._context.globalState.get("defaultCommand",""),f=this._context.globalState.get("defaultSteps",[]),h=J(t,d,f,p,e);this._cellShellType[e]=r,this._insideLlm[e]=!1;let k=!1;this._outputBuffers[e]="",this._csiUMode[e]=!1,o.onData(m=>{this._disposed||(c.CSI_U_ENABLE.test(m)&&(this._csiUMode[e]=!0),c.CSI_U_DISABLE.test(m)&&(this._csiUMode[e]=!1),this._outputBuffers[e]=(this._outputBuffers[e]||"")+m,this._outputBuffers[e].length>c.OUTPUT_BUFFER_SIZE&&(this._outputBuffers[e]=this._outputBuffers[e].slice(-c.OUTPUT_BUFFER_SIZE)),this._panel.webview.postMessage({type:"output",id:e,data:m}),!k&&h.length>0&&(k=!0,this._executeSteps(e,h,this._cellShellType[e]||"")))}),this._terminals[e]={id:e,pty:o}}static{this.CHUNK_SIZE=4096}static{this.CHUNK_DELAY=10}_chunkedWrite(e,s){if(s.length<=c.CHUNK_SIZE){e.write(s);return}let l=0,n=()=>{if(l>=s.length)return;let t=s.slice(l,l+c.CHUNK_SIZE);l+=c.CHUNK_SIZE,e.write(t),l<s.length&&setTimeout(n,c.CHUNK_DELAY)};n()}async _typeToCell(e,s){let l=this._terminals[e]?.pty;if(l)for(let n of s)l.write(n),await R(20)}static{this.LLM_TYPE_MAX_RETRIES=5}static{this.LLM_ECHO_WAIT=2e3}async _waitForLlmPrompt(e){let s=(this._outputBuffers[e]||"").length,l=Date.now()+re;for(;Date.now()<l;){await R(oe);let n=this._outputBuffers[e]||"",t=c._stripAnsi(n.slice(s));if(ae.some(r=>r.test(t)))return!0;if(this._disposed)return!1}return!1}async _typeWithRetry(e,s){let l=this._terminals[e]?.pty;if(!l)return!1;for(let n=0;n<c.LLM_TYPE_MAX_RETRIES;n++){let t=(this._outputBuffers[e]||"").length;await this._typeToCell(e,s);let r=Date.now()+c.LLM_ECHO_WAIT;for(;Date.now()<r;){await R(50);let o=this._outputBuffers[e]||"";if(c._stripAnsi(o.slice(t)).includes(s))return!0;if(this._disposed)return!1}for(let o=0;o<s.length;o++)l.write("\x7F");await R(300)}return!1}async _executeSteps(e,s,l){this._stepGeneration[e]||(this._stepGeneration[e]=0);let n=++this._stepGeneration[e],t=!1;for(let r=0;r<s.length;r++){if(this._disposed||this._stepGeneration[e]!==n)return;let o=s[r];if(o.type==="timeout")await R(o.ms);else if(o.type==="command"){if(r>0&&(t?await this._waitForLlmPrompt(e):s[r-1].type==="command"&&await R(se)),this._disposed||this._stepGeneration[e]!==n)return;let i=t?W:this._enterSeq(e);t?(await this._typeWithRetry(e,o.input),this._terminals[e]?.pty.write(i)):this._terminals[e]?.pty.write(o.input+i),j(o.input)&&(t=!0),o.input.trim()==="exit"&&(t=!1),this._insideLlm[e]=t}}}restartCell(e){this._restartTerminal(e)}restartAllCells(){for(let e of this._terminals)this._restartTerminal(e.id)}dispose(){this._disposed=!0,c.currentPanel=void 0,this._configListener?.dispose(),this._context.globalState.update("lastGrid",void 0);for(let e of this._terminals)try{e.pty.kill()}catch{}this._terminals=[];for(let e of this._pasteImages)try{L.unlinkSync(e)}catch{}this._pasteImages=[],this._panel.dispose()}_buildCustomFontCss(){let e=this._context.globalState.get("customFonts",[]),s="";for(let l of e){let n=this._readFontBase64(l.path);if(!n)continue;let t=M.extname(l.path).toLowerCase(),r=V[t]||"truetype";s+=`@font-face { font-family: '${l.name}'; src: url(data:font/${t.slice(1)};base64,${n}) format('${r}'); font-display: swap; }
-`}return s}_getHtml(){let e=this._panel.webview,s=e.asWebviewUri(u.Uri.joinPath(this._context.extensionUri,"media","gridTerminal.js")),l=e.asWebviewUri(u.Uri.joinPath(this._context.extensionUri,"media","xterm.css")),n=de(),t=this._buildCustomFontCss();return`<!DOCTYPE html>
+`)}readCell(e,n){if(this._hiddenCells.has(e))return null;let a=this._outputBuffers[e];if(a===void 0)return null;let s=o._stripAnsi(a);return n===void 0?s:n<=0?"":s.split(`
+`).slice(-n).join(`
+`)}getCellCount(){return this._terminals.length}getRows(){return this._rows}getCols(){return this._cols}getCellLabels(){let e=p.getCellLabels(this._tabId),n=this._rows*this._cols;return Array.from({length:n},(a,s)=>e[s]||String(s+1))}sendCellConfig(e,n,a,s,t,r){this._panel.webview.postMessage({type:"cellConfig",id:e,bgColor:n,fgColor:a,fontFamily:s,themeName:t??"",themeColors:r??null})}clearCellOverrides(){this._panel.webview.postMessage({type:"clearCellOverrides"})}sendLabels(){let e=p.getCellLabels(this._tabId);this._panel.webview.postMessage({type:"setLabels",labels:e})}loadCustomFonts(e){for(let n of e){let a=this._readFontBase64(n.path);if(a){let s=$.extname(n.path).toLowerCase();this._panel.webview.postMessage({type:"loadFont",name:n.name,data:a,format:pe[s]||"truetype"})}}}getTabId(){return this._tabId}getCellIds(){return this._cellIds.slice()}reveal(){this._panel.reveal(this._panel.viewColumn??y.ViewColumn.One)}refreshTitle(){if(this._disposed)return;let e=w.entries(),n=e.findIndex(([t])=>t===this._tabId),a=n>=0?n:e.length,s=p.getTabName(this._tabId);this._panel.title=o._formatTitle(this._rows,this._cols,a,s)}_readFontBase64(e){try{return G.readFileSync(e).toString("base64")}catch{return null}}_spawnPty(e,n,a,s,t){let r=this._resolveShell(t);if(e){let b=e.spawn(r.path,r.args,{name:"xterm-256color",cols:n,rows:a,cwd:s,env:process.env});return{onData:m=>{b.onData(m)},write:m=>b.write(m),resize:(m,d)=>b.resize(m,d),kill:()=>b.kill()}}let{spawn:g}=require("child_process"),l=g(r.path,r.args,{cwd:s,env:process.env,windowsHide:!0});return{onData:b=>{l.stdout?.on("data",m=>b(m.toString())),l.stderr?.on("data",m=>b(m.toString()))},write:b=>{l.stdin?.write(b)},resize:()=>{},kill:()=>l.kill()}}_createTerminals(e,n){let a=y.workspace.workspaceFolders?.[0]?.uri.fsPath||process.env.USERPROFILE||process.env.HOME||".",s=this._rows*this._cols,t=o._getNodePty();t||y.window.showWarningMessage(y.l10n.t("node-pty not available. Falling back to basic shell (limited features)."));let r=p.getStartupCommands(this._tabId),g=[];for(let c of r)if(typeof c=="string")g.push(c);else if(c&&typeof c=="object"&&"command"in c){let h=c;for(let S=0;S<(h.count||1);S++)g.push(h.command)}let l=p.getDefaultCommand(this._tabId),b=p.getDefaultSteps(this._tabId),m=e||80,d=n||24,f=y.workspace.getConfiguration("terminalGrid").get("shellType",""),v=p.getCellOverrides(this._tabId);for(let c=0;c<s;c++){if(this._hiddenCells.has(c)){let D={onData(){},write(){},resize(){},kill(){}};this._terminals.push({id:c,pty:D}),this._outputBuffers[c]="",this._cellShellType[c]="",this._insideLlm[c]=!1,this._csiUMode[c]=!1;continue}let h=v[c]?.shellType||f||"",S=this._spawnPty(t,m,d,a,h||void 0),C=c,I=ce(v,g,b,l,c);this._cellShellType[C]=h,this._insideLlm[C]=!1,this._outputBuffers[C]="",this._csiUMode[C]=!1;let k=!1;S.onData(D=>{this._disposed||(o.CSI_U_ENABLE.test(D)&&(this._csiUMode[C]=!0),o.CSI_U_DISABLE.test(D)&&(this._csiUMode[C]=!1),this._outputBuffers[C]=(this._outputBuffers[C]||"")+D,this._outputBuffers[C].length>o.OUTPUT_BUFFER_SIZE&&(this._outputBuffers[C]=this._outputBuffers[C].slice(-o.OUTPUT_BUFFER_SIZE)),this._panel.webview.postMessage({type:"output",id:C,data:D}),!k&&I.length>0&&(k=!0,this._executeSteps(C,I,this._cellShellType[C]||"")))}),this._terminals.push({id:c,pty:S})}this.sendLabels()}_restartTerminal(e){let n=this._terminals[e];if(!n)return;try{n.pty.kill()}catch{}this._panel.webview.postMessage({type:"reset",id:e});let a=y.workspace.workspaceFolders?.[0]?.uri.fsPath||process.env.USERPROFILE||process.env.HOME||".",s=y.workspace.getConfiguration("terminalGrid").get("shellType",""),t=p.getCellOverrides(this._tabId),r=t[e]?.shellType||s||"",g=this._spawnPty(o._getNodePty(),80,24,a,r||void 0),l=p.getStartupCommands(this._tabId),b=[];for(let c of l)if(typeof c=="string")b.push(c);else if(c&&typeof c=="object"&&"command"in c){let h=c;for(let S=0;S<(h.count||1);S++)b.push(h.command)}let m=p.getDefaultCommand(this._tabId),d=p.getDefaultSteps(this._tabId),f=ce(t,b,d,m,e);this._cellShellType[e]=r,this._insideLlm[e]=!1;let v=!1;this._outputBuffers[e]="",this._csiUMode[e]=!1,g.onData(c=>{this._disposed||(o.CSI_U_ENABLE.test(c)&&(this._csiUMode[e]=!0),o.CSI_U_DISABLE.test(c)&&(this._csiUMode[e]=!1),this._outputBuffers[e]=(this._outputBuffers[e]||"")+c,this._outputBuffers[e].length>o.OUTPUT_BUFFER_SIZE&&(this._outputBuffers[e]=this._outputBuffers[e].slice(-o.OUTPUT_BUFFER_SIZE)),this._panel.webview.postMessage({type:"output",id:e,data:c}),!v&&f.length>0&&(v=!0,this._executeSteps(e,f,this._cellShellType[e]||"")))}),this._terminals[e]={id:e,pty:g}}static{this.CHUNK_SIZE=4096}static{this.CHUNK_DELAY=10}_chunkedWrite(e,n){if(n.length<=o.CHUNK_SIZE){e.write(n);return}let a=0,s=()=>{if(a>=n.length)return;let t=n.slice(a,a+o.CHUNK_SIZE);a+=o.CHUNK_SIZE,e.write(t),a<n.length&&setTimeout(s,o.CHUNK_DELAY)};s()}async _typeToCell(e,n){let a=this._terminals[e]?.pty;if(a)for(let s of n)a.write(s),await O(20)}static{this.LLM_TYPE_MAX_RETRIES=5}static{this.LLM_ECHO_WAIT=2e3}async _waitForLlmPrompt(e){let n=(this._outputBuffers[e]||"").length,a=Date.now()+ke;for(;Date.now()<a;){await O(Te);let s=this._outputBuffers[e]||"",t=o._stripAnsi(s.slice(n));if(Ie.some(r=>r.test(t)))return!0;if(this._disposed)return!1}return!1}async _typeWithRetry(e,n){let a=this._terminals[e]?.pty;if(!a)return!1;for(let s=0;s<o.LLM_TYPE_MAX_RETRIES;s++){let t=(this._outputBuffers[e]||"").length;await this._typeToCell(e,n);let r=Date.now()+o.LLM_ECHO_WAIT;for(;Date.now()<r;){await O(50);let g=this._outputBuffers[e]||"";if(o._stripAnsi(g.slice(t)).includes(n))return!0;if(this._disposed)return!1}for(let g=0;g<n.length;g++)a.write("\x7F");await O(300)}return!1}async _executeSteps(e,n,a){this._stepGeneration[e]||(this._stepGeneration[e]=0);let s=++this._stepGeneration[e],t=!1;for(let r=0;r<n.length;r++){if(this._disposed||this._stepGeneration[e]!==s)return;let g=n[r];if(g.type==="timeout")await O(g.ms);else if(g.type==="command"){if(r>0&&(t?await this._waitForLlmPrompt(e):n[r-1].type==="command"&&await O(_e)),this._disposed||this._stepGeneration[e]!==s)return;let l=t?de:this._enterSeq(e);t?(await this._typeWithRetry(e,g.input),this._terminals[e]?.pty.write(l)):this._terminals[e]?.pty.write(g.input+l),Q(g.input)&&(t=!0),g.input.trim()==="exit"&&(t=!1),this._insideLlm[e]=t}}}restartCell(e){this._restartTerminal(e)}restartAllCells(){for(let e of this._terminals)this._restartTerminal(e.id)}dispose(){if(this._disposed)return;this._disposed=!0,this._registryListener?.dispose(),w.unregister(this._tabId,this),this._configListener?.dispose();for(let n of this._terminals)try{n.pty.kill()}catch{}this._terminals=[];for(let n of this._pasteImages)try{G.unlinkSync(n)}catch{}this._pasteImages=[],this._panel.dispose(),w.size()===0?(this._context.globalState.update("lastGrid",void 0),this._context.globalState.update("lastTabs",void 0)):o._persistTabs(this._context);let e=w.getActive();e&&(e.reveal(),y.commands.executeCommand("terminalGrid._refreshSidebar"))}_buildCustomFontCss(){let e=this._context.globalState.get("customFonts",[]),n="";for(let a of e){let s=this._readFontBase64(a.path);if(!s)continue;let t=$.extname(a.path).toLowerCase(),r=pe[t]||"truetype";n+=`@font-face { font-family: '${a.name}'; src: url(data:font/${t.slice(1)};base64,${s}) format('${r}'); font-display: swap; }
+`}return n}_getHtml(){let e=this._panel.webview,n=e.asWebviewUri(y.Uri.joinPath(this._context.extensionUri,"media","gridTerminal.js")),a=e.asWebviewUri(y.Uri.joinPath(this._context.extensionUri,"media","xterm.css")),s=Le(),t=this._buildCustomFontCss();return`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'none';
                  style-src ${e.cspSource} 'unsafe-inline';
-                 script-src 'nonce-${n}';
+                 script-src 'nonce-${s}';
                  font-src ${e.cspSource} data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="${l}">
+  <link rel="stylesheet" href="${a}">
   <style>
     ${t}
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,28 +110,6 @@
     .term-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
       background: var(--vscode-scrollbarSlider-hoverBackground, rgba(255,255,255,0.2));
     }
-    .scroll-down-btn {
-      position: absolute;
-      bottom: 4px;
-      right: 10px;
-      z-index: 10;
-      width: 18px;
-      height: 18px;
-      border: none;
-      border-radius: 3px;
-      background: var(--vscode-button-background, #0e639c);
-      color: var(--vscode-button-foreground, #fff);
-      font-size: 11px;
-      line-height: 18px;
-      text-align: center;
-      cursor: pointer;
-      opacity: 0.85;
-      padding: 0;
-      transition: opacity 0.15s;
-    }
-    .scroll-down-btn:hover {
-      opacity: 1;
-    }
     .ctx-menu {
       position: fixed; display: none; z-index: 1000;
       background: var(--vscode-menu-background, #252526);
@@ -152,30 +130,30 @@
 <body>
   <div id="grid"></div>
   <div class="ctx-menu" id="ctxMenu">
-    <div class="ctx-menu-item" data-action="copy">${u.l10n.t("Copy")}</div>
-    <div class="ctx-menu-item" data-action="copyPlain">${u.l10n.t("Copy (Plain)")}</div>
-    <div class="ctx-menu-item" data-action="paste">${u.l10n.t("Paste")}</div>
+    <div class="ctx-menu-item" data-action="copy">${y.l10n.t("Copy")}</div>
+    <div class="ctx-menu-item" data-action="copyPlain">${y.l10n.t("Copy (Plain)")}</div>
+    <div class="ctx-menu-item" data-action="paste">${y.l10n.t("Paste")}</div>
     <div class="ctx-menu-sep"></div>
-    <div class="ctx-menu-item" data-action="clear">${u.l10n.t("Clear")}</div>
-    <div class="ctx-menu-item" data-action="restart">${u.l10n.t("Restart")}</div>
-    <div class="ctx-menu-item" data-action="kill">${u.l10n.t("Kill")}</div>
+    <div class="ctx-menu-item" data-action="clear">${y.l10n.t("Clear")}</div>
+    <div class="ctx-menu-item" data-action="restart">${y.l10n.t("Restart")}</div>
+    <div class="ctx-menu-item" data-action="kill">${y.l10n.t("Kill")}</div>
     <div class="ctx-menu-sep"></div>
-    <div class="ctx-menu-item" data-action="rename">${u.l10n.t("Rename")}</div>
+    <div class="ctx-menu-item" data-action="rename">${y.l10n.t("Rename")}</div>
   </div>
-  <script nonce="${n}">
+  <script nonce="${s}">
     var __GRID_ROWS = ${this._rows};
     var __GRID_COLS = ${this._cols};
-    var __GRID_ZOOM = ${u.workspace.getConfiguration("terminalGrid").get("zoomPercent",100)};
-    var __GRID_FONT_FAMILY = ${JSON.stringify(u.workspace.getConfiguration("terminalGrid").get("fontFamily",""))};
-    var __GRID_BG_COLOR = ${JSON.stringify(u.workspace.getConfiguration("terminalGrid").get("backgroundColor",""))};
-    var __GRID_FG_COLOR = ${JSON.stringify(u.workspace.getConfiguration("terminalGrid").get("foregroundColor",""))};
-    var __GRID_THEME = ${JSON.stringify(u.workspace.getConfiguration("terminalGrid").get("colorTheme",""))};
-    var __GRID_THEME_COLORS = ${JSON.stringify(P(u.workspace.getConfiguration("terminalGrid").get("colorTheme","")))};
-    var __GRID_MERGE_REGIONS = ${JSON.stringify(this._context.globalState.get("mergedRegions",[]).filter(r=>r.startRow+r.rowSpan<=this._rows&&r.startCol+r.colSpan<=this._cols))};
+    var __GRID_ZOOM = ${y.workspace.getConfiguration("terminalGrid").get("zoomPercent",100)};
+    var __GRID_FONT_FAMILY = ${JSON.stringify(y.workspace.getConfiguration("terminalGrid").get("fontFamily",""))};
+    var __GRID_BG_COLOR = ${JSON.stringify(y.workspace.getConfiguration("terminalGrid").get("backgroundColor",""))};
+    var __GRID_FG_COLOR = ${JSON.stringify(y.workspace.getConfiguration("terminalGrid").get("foregroundColor",""))};
+    var __GRID_THEME = ${JSON.stringify(y.workspace.getConfiguration("terminalGrid").get("colorTheme",""))};
+    var __GRID_THEME_COLORS = ${JSON.stringify(A(y.workspace.getConfiguration("terminalGrid").get("colorTheme","")))};
+    var __GRID_MERGE_REGIONS = ${JSON.stringify(p.getMergedRegions(this._tabId).filter(r=>r.startRow+r.rowSpan<=this._rows&&r.startCol+r.colSpan<=this._cols))};
   </script>
-  <script nonce="${n}" src="${s}"></script>
+  <script nonce="${s}" src="${n}"></script>
 </body>
-</html>`}};function de(){let c="",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let s=0;s<32;s++)c+=e.charAt(Math.floor(Math.random()*e.length));return c}var ce=[".ttf",".otf",".woff",".woff2"];function pe(){try{return require("node-pty"),!0}catch{return!1}}var B=class{constructor(e){this._mcpPort=0;this._context=e}static{this.viewType="terminalGrid.sidebarView"}setMcpPort(e){this._mcpPort=e,this._view?.webview.postMessage({type:"mcpPort",port:e})}resolveWebviewView(e,s,l){this._view=e,e.webview.options={enableScripts:!0,localResourceRoots:[this._context.extensionUri]},e.webview.html=this._getHtml(),e.webview.onDidReceiveMessage(async n=>{switch(n.type){case"openGrid":await a.commands.executeCommand("terminalGrid.openCustomGrid",n.rows,n.cols),this.sendConfig();break;case"reload":await a.commands.executeCommand("workbench.action.reloadWindow");break;case"setConfig":{let t=a.workspace.getConfiguration("terminalGrid");n.key&&n.value!==void 0&&await t.update(n.key,n.value,a.ConfigurationTarget.Global),n.key==="shellType"&&v.currentPanel&&v.currentPanel.restartAllCells();break}case"getConfig":{this.sendConfig();break}case"browseFont":{let t=await a.window.showOpenDialog({canSelectMany:!1,filters:{"Font Files":["ttf","otf","woff","woff2"]},title:a.l10n.t("Select Font File")});if(!t||t.length===0)break;let r=t[0].fsPath,o=S.extname(r).toLowerCase();if(!ce.includes(o)){a.window.showWarningMessage(a.l10n.t("Unsupported font format. Use .ttf, .otf, .woff, or .woff2"));break}try{w.accessSync(r,w.constants.R_OK)}catch{a.window.showErrorMessage(a.l10n.t("Cannot read font file."));break}let i=S.basename(r,o),d=this._context.globalState.get("customFonts",[]);d.some(p=>p.path===r)||(d.push({name:i,path:r}),await this._context.globalState.update("customFonts",d)),this.sendConfig(),v.currentPanel&&v.currentPanel.loadCustomFonts([{name:i,path:r}]);break}case"removeFont":{let r=this._context.globalState.get("customFonts",[]).filter(o=>o.name!==n.name);await this._context.globalState.update("customFonts",r),this.sendConfig();break}case"addStartupCommand":{let t=this._context.globalState.get("startupCommands",[]);t.push({command:n.command,count:1}),await this._context.globalState.update("startupCommands",t),this.sendConfig();break}case"removeStartupCommand":{let t=this._context.globalState.get("startupCommands",[]);t.splice(n.index,1),await this._context.globalState.update("startupCommands",t),this.sendConfig();break}case"updateCommandCount":{let t=this._context.globalState.get("startupCommands",[]);t[n.index]&&(t[n.index].count=Math.max(1,n.count),await this._context.globalState.update("startupCommands",t)),this.sendConfig();break}case"addStep":{if(n.target==="all"){let t=this._context.globalState.get("defaultSteps",[]);t.push(n.step),await this._context.globalState.update("defaultSteps",t);let r=t.find(o=>o.type==="command");await this._context.globalState.update("defaultCommand",r?.input||"")}else{let t=this._context.globalState.get("cellOverrides",{}),r=n.target;t[r]||(t[r]={}),Array.isArray(t[r].startupSteps)||(t[r].startupSteps=[]),t[r].startupSteps.push(n.step);let o=t[r].startupSteps.find(i=>i.type==="command");t[r].startupCommand=o?.input||"",await this._context.globalState.update("cellOverrides",t)}this.sendConfig();break}case"removeStep":{if(n.target==="all"){let t=this._context.globalState.get("defaultSteps",[]);t.splice(n.index,1),await this._context.globalState.update("defaultSteps",t);let r=t.find(o=>o.type==="command");await this._context.globalState.update("defaultCommand",r?.input||"")}else{let t=this._context.globalState.get("cellOverrides",{}),r=n.target;if(Array.isArray(t[r]?.startupSteps)){t[r].startupSteps.splice(n.index,1);let o=t[r].startupSteps.find(i=>i.type==="command");t[r].startupCommand=o?.input||"",await this._context.globalState.update("cellOverrides",t)}}this.sendConfig();break}case"reorderSteps":{if(n.target==="all"){await this._context.globalState.update("defaultSteps",n.steps);let t=n.steps.find(r=>r.type==="command");await this._context.globalState.update("defaultCommand",t?.input||"")}else{let t=this._context.globalState.get("cellOverrides",{}),r=n.target;t[r]||(t[r]={}),t[r].startupSteps=n.steps;let o=n.steps.find(i=>i.type==="command");t[r].startupCommand=o?.input||"",await this._context.globalState.update("cellOverrides",t)}this.sendConfig();break}case"updateStep":{if(n.target==="all"){let t=this._context.globalState.get("defaultSteps",[]);n.index>=0&&n.index<t.length&&(t[n.index]=n.step,await this._context.globalState.update("defaultSteps",t))}else{let t=this._context.globalState.get("cellOverrides",{}),r=n.target,o=t[r]?.startupSteps||[];n.index>=0&&n.index<o.length&&(o[n.index]=n.step,t[r]||(t[r]={}),t[r].startupSteps=o,await this._context.globalState.update("cellOverrides",t))}this.sendConfig();break}case"addProject":{let t=this._context.globalState.get("projects",[]);t.some(r=>r.path===n.path)||(t.push({name:n.name,path:n.path}),await this._context.globalState.update("projects",t)),this.sendConfig();break}case"removeProject":{let t=this._context.globalState.get("projects",[]);t.splice(n.index,1),await this._context.globalState.update("projects",t),this.sendConfig();break}case"openProject":{let t=a.Uri.file(n.path);await a.commands.executeCommand("vscode.openFolder",t,{forceNewWindow:!!n.newWindow});break}case"addCurrentProject":{let t=a.workspace.workspaceFolders?.[0];if(!t){a.window.showWarningMessage(a.l10n.t("No workspace folder open."));break}let r=this._context.globalState.get("projects",[]),o=t.uri.fsPath;r.some(i=>i.path===o)||(r.push({name:t.name,path:o}),await this._context.globalState.update("projects",r)),this.sendConfig();break}case"browseProject":{let t=await a.window.showOpenDialog({canSelectFiles:!1,canSelectFolders:!0,canSelectMany:!1,title:a.l10n.t("Select Project Folder")});if(!t||t.length===0)break;let r=t[0].fsPath,o=S.basename(r),i=this._context.globalState.get("projects",[]);i.some(d=>d.path===r)||(i.push({name:o,path:r}),await this._context.globalState.update("projects",i)),this.sendConfig();break}case"savePreset":{await this._savePreset(n.name),this.sendConfig();break}case"loadPreset":{let r=this._context.globalState.get("presets",[]).find(i=>i.name===n.name);if(!r)break;let o=a.workspace.getConfiguration("terminalGrid");if(await o.update("defaultRows",r.rows,a.ConfigurationTarget.Global),await o.update("defaultCols",r.cols,a.ConfigurationTarget.Global),await o.update("zoomPercent",r.zoomPercent,a.ConfigurationTarget.Global),await o.update("fontFamily",r.fontFamily,a.ConfigurationTarget.Global),await o.update("backgroundColor",r.bgColor,a.ConfigurationTarget.Global),await o.update("foregroundColor",r.fgColor,a.ConfigurationTarget.Global),await o.update("colorTheme",r.colorTheme||"",a.ConfigurationTarget.Global),await o.update("shellType",r.shellType||"",a.ConfigurationTarget.Global),await this._context.globalState.update("startupCommands",r.startupCommands||[]),await this._context.globalState.update("cellLabels",r.cellLabels||[]),await this._context.globalState.update("defaultCommand",r.defaultCommand||""),r.defaultSteps?await this._context.globalState.update("defaultSteps",r.defaultSteps):r.defaultCommand?await this._context.globalState.update("defaultSteps",[{type:"command",input:r.defaultCommand}]):await this._context.globalState.update("defaultSteps",[]),r.cellStepsOverrides){let i=this._context.globalState.get("cellOverrides",{});for(let[d,p]of Object.entries(r.cellStepsOverrides))i[Number(d)]||(i[Number(d)]={}),Array.isArray(p.startupSteps)&&(i[Number(d)].startupSteps=p.startupSteps);await this._context.globalState.update("cellOverrides",i)}await this._context.globalState.update("mergedRegions",r.mergedRegions||[]),v.createOrShow(this._context,r.rows,r.cols),this.sendConfig();break}case"deletePreset":{let r=this._context.globalState.get("presets",[]).filter(i=>i.name!==n.name);await this._context.globalState.update("presets",r);let o=this._context.globalState.get("projectPresets",{});for(let i of Object.keys(o))o[i]===n.name&&delete o[i];await this._context.globalState.update("projectPresets",o),this.sendConfig();break}case"linkPreset":{let t=this._context.globalState.get("projectPresets",{});n.presetName?t[n.projectPath]=n.presetName:delete t[n.projectPath],await this._context.globalState.update("projectPresets",t),this.sendConfig();break}case"broadcast":{v.currentPanel?v.currentPanel.broadcastInput(n.text):a.window.showWarningMessage(a.l10n.t("No terminal grid is open."));break}case"broadcastToCell":{if(v.currentPanel)for(let t of n.cellIds)v.currentPanel.sendInputToCell(t,n.text);else a.window.showWarningMessage(a.l10n.t("No terminal grid is open."));break}case"setCellConfig":{let t=this._context.globalState.get("cellOverrides",{});if(t[n.cellId]={bgColor:n.bgColor||"",fgColor:n.fgColor||"",fontFamily:n.fontFamily||"",themeName:n.themeName||"",shellType:t[n.cellId]?.shellType||""},await this._context.globalState.update("cellOverrides",t),v.currentPanel){let r=n.themeName?P(n.themeName):null;v.currentPanel.sendCellConfig(n.cellId,n.bgColor||"",n.fgColor||"",n.fontFamily||"",n.themeName||"",r)}break}case"setShellForCell":{let t=this._context.globalState.get("cellOverrides",{});t[n.cellId]||(t[n.cellId]={}),t[n.cellId].shellType=n.shellType||"",await this._context.globalState.update("cellOverrides",t),v.currentPanel&&v.currentPanel.restartCell(n.cellId);break}case"setDefaultCommand":{let t=n.command||"";await this._context.globalState.update("defaultCommand",t),await this._context.globalState.update("defaultSteps",t?[{type:"command",input:t}]:[]),this.sendConfig();break}case"setCellCommand":{let t=this._context.globalState.get("cellOverrides",{});t[n.cellId]||(t[n.cellId]={});let r=n.command||"";t[n.cellId].startupCommand=r,t[n.cellId].startupSteps=r?[{type:"command",input:r}]:[],await this._context.globalState.update("cellOverrides",t),this.sendConfig();break}case"clearAllCellOverrides":{await this._context.globalState.update("cellOverrides",{}),v.currentPanel&&v.currentPanel.clearCellOverrides();break}case"clearAllCellShells":{let t=this._context.globalState.get("cellOverrides",{});for(let r of Object.keys(t))t[parseInt(r)]&&(t[parseInt(r)].shellType="");await this._context.globalState.update("cellOverrides",t);break}case"saveMergeRegions":{let t=n.regions||[];await this._context.globalState.update("mergedRegions",t);let r=a.workspace.getConfiguration("terminalGrid").get("defaultCols",3),o=new Set;for(let i of t)for(let d=i.startRow;d<i.startRow+i.rowSpan;d++)for(let p=i.startCol;p<i.startCol+i.colSpan;p++)d===i.startRow&&p===i.startCol||o.add(d*r+p);if(o.size>0){let i=this._context.globalState.get("cellOverrides",{}),d=this._context.globalState.get("cellLabels",[]),p=!1;for(let f of o)i[String(f)]&&(delete i[String(f)],p=!0),d[f]&&(d[f]="",p=!0);p&&(await this._context.globalState.update("cellOverrides",i),await this._context.globalState.update("cellLabels",d))}this.sendConfig();break}case"saveSectionStates":{await this._context.globalState.update("sectionStates",n.states);break}case"registerMcpDesktop":{let t=await this._registerMcpInConfig("desktop");this._view?.webview.postMessage({type:"mcpRegisterResult",target:"desktop",...t});break}case"checkMcpRegistration":{let t=this._checkMcpRegistration();this._view?.webview.postMessage({type:"mcpRegistrationStatus",...t});break}case"showMcpAlreadyRegistered":{a.window.showInformationMessage(a.l10n.t("Terminal Grid MCP server is already registered in Claude Desktop."));break}case"installNodePty":{try{await a.window.withProgress({location:a.ProgressLocation.Notification,title:a.l10n.t("Installing node-pty\u2026"),cancellable:!1},()=>new Promise((o,i)=>{Z.exec("npm install node-pty",{cwd:this._context.extensionPath},d=>{d?i(d):o()})})),this._view?.webview.postMessage({type:"ptyInstallResult",success:!0});let t=a.l10n.t("Reload Window");await a.window.showInformationMessage(a.l10n.t("node-pty installed successfully. Reload window to activate."),t)===t&&a.commands.executeCommand("workbench.action.reloadWindow")}catch(t){let r=t instanceof Error?t.message:String(t);a.window.showErrorMessage(a.l10n.t("node-pty install failed: {0}",r)),this._view?.webview.postMessage({type:"ptyInstallResult",success:!1})}break}}}),a.workspace.onDidChangeConfiguration(n=>{n.affectsConfiguration("terminalGrid")&&this.sendConfig()})}async _savePreset(e){let s=a.workspace.getConfiguration("terminalGrid"),l={name:e,rows:s.get("defaultRows",2),cols:s.get("defaultCols",3),startupCommands:this._context.globalState.get("startupCommands",[]),cellLabels:this._context.globalState.get("cellLabels",[]),zoomPercent:s.get("zoomPercent",100),fontFamily:s.get("fontFamily",""),bgColor:s.get("backgroundColor",""),fgColor:s.get("foregroundColor",""),colorTheme:s.get("colorTheme",""),shellType:s.get("shellType",""),defaultCommand:this._context.globalState.get("defaultCommand",""),defaultSteps:this._context.globalState.get("defaultSteps",[]),cellStepsOverrides:this._context.globalState.get("cellOverrides",{}),mergedRegions:this._context.globalState.get("mergedRegions",[])},n=this._context.globalState.get("presets",[]),t=n.findIndex(r=>r.name===e);t>=0?n[t]=l:n.push(l),await this._context.globalState.update("presets",n)}async _migrateSteps(){let e=!1,s=this._context.globalState.get("defaultSteps",[]),l=this._context.globalState.get("defaultCommand","");l&&s.length===0?(await this._context.globalState.update("defaultSteps",[{type:"command",input:l}]),await this._context.globalState.update("defaultCommand",""),e=!0):l&&s.length>0&&(await this._context.globalState.update("defaultCommand",""),e=!0);let n=this._context.globalState.get("cellOverrides",{});for(let r of Object.keys(n)){let o=n[Number(r)];if(!o)continue;let i=o.startupCommand,d=o.startupSteps;i&&(!d||d.length===0)?(o.startupSteps=[{type:"command",input:i}],delete o.startupCommand,e=!0):i&&d&&d.length>0&&(delete o.startupCommand,e=!0)}this._context.globalState.get("startupCommands",[]).length>0&&(await this._context.globalState.update("startupCommands",[]),e=!0),e&&await this._context.globalState.update("cellOverrides",n)}_getClaudeDesktopConfigPath(){let e=process.platform;return e==="win32"?S.join(process.env.APPDATA||S.join(F.homedir(),"AppData","Roaming"),"Claude","claude_desktop_config.json"):e==="darwin"?S.join(F.homedir(),"Library","Application Support","Claude","claude_desktop_config.json"):S.join(F.homedir(),".config","Claude","claude_desktop_config.json")}_getMcpServerEntry(){let e=this._mcpPort||a.workspace.getConfiguration("terminalGrid").get("apiPort",7890);return{command:"node",args:[S.join(this._context.extensionPath,"mcp-server.js")],env:{TERMINAL_GRID_PORT:String(e)}}}_checkMcpRegistration(){let e=this._getClaudeDesktopConfigPath(),s=!1;try{if(w.existsSync(e)){let l=w.readFileSync(e,"utf-8");s=!!JSON.parse(l)?.mcpServers?.["terminal-grid"]}}catch{}return{desktop:s}}async _registerMcpInConfig(e){let s=this._getClaudeDesktopConfigPath(),l=this._getMcpServerEntry();try{let n=S.dirname(s);w.existsSync(n)||w.mkdirSync(n,{recursive:!0});let t={};if(w.existsSync(s)){let r=w.readFileSync(s,"utf-8");t=JSON.parse(r)}return t.mcpServers||(t.mcpServers={}),t.mcpServers["terminal-grid"]=l,w.writeFileSync(s,JSON.stringify(t,null,2),"utf-8"),a.window.showInformationMessage(a.l10n.t("Terminal Grid MCP server registered in Claude Desktop. Restart Claude Desktop to activate.")),{success:!0,message:"registered"}}catch(n){let t=n instanceof Error?n.message:String(n);return a.window.showErrorMessage(a.l10n.t("Failed to register MCP server: {0}",t)),{success:!1,message:t}}}sendConfig(){if(!this._view)return;this._migrateSteps();let e=a.workspace.getConfiguration("terminalGrid"),s=this._context.globalState.get("customFonts",[]),l=this._context.globalState.get("startupCommands",[]),n=this._context.globalState.get("projects",[]),t=this._context.globalState.get("presets",[]),r=this._context.globalState.get("projectPresets",{}),o=this._context.globalState.get("cellLabels",[]),i=this._context.globalState.get("cellOverrides",{}),d=this._context.globalState.get("defaultSteps",[]),p=this._context.globalState.get("sectionStates",{}),f=a.workspace.workspaceFolders?.[0]?.uri.fsPath||"",h=v.currentPanel,k=v.getAvailableShells();this._view.webview.postMessage({type:"configValues",zoom:e.get("zoomPercent",100),fontFamily:e.get("fontFamily",""),bgColor:e.get("backgroundColor",""),fgColor:e.get("foregroundColor",""),colorTheme:e.get("colorTheme",""),shellType:e.get("shellType",""),defaultCommand:this._context.globalState.get("defaultCommand",""),themeNames:U,availableShells:k.map(m=>({name:m.name,path:m.path})),customFonts:s.map(m=>m.name),startupCommands:l,projects:n,presets:t,projectPresets:r,cellLabels:o,cellOverrides:i,defaultSteps:d,sectionStates:p,workspacePath:f,gridRows:h?.getRows()??0,gridCols:h?.getCols()??0,mergedRegions:this._context.globalState.get("mergedRegions",[]),hiddenCells:(()=>{let m=this._context.globalState.get("mergedRegions",[]),x=e.get("defaultCols",3),y=[];for(let b of m)for(let C=b.startRow;C<b.startRow+b.rowSpan;C++)for(let _=b.startCol;_<b.startCol+b.colSpan;_++)C===b.startRow&&_===b.startCol||y.push(C*x+_);return y})()})}_getHtml(){let e=ge();return`<!DOCTYPE html>
+</html>`}};function Le(){let o="",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let n=0;n<32;n++)o+=e.charAt(Math.floor(Math.random()*e.length));return o}var De=[".ttf",".otf",".woff",".woff2"];function Me(){try{return require("node-pty"),!0}catch{return!1}}var z=class o{constructor(e){this._mcpPort=0;this._context=e,w.onDidChange(()=>this._scheduleConfigSend())}static{this.viewType="terminalGrid.sidebarView"}_scheduleConfigSend(){this._configSendTimer&&clearTimeout(this._configSendTimer),this._configSendTimer=setTimeout(()=>{this._configSendTimer=void 0,this.sendConfig()},50)}setMcpPort(e){this._mcpPort=e,this._view?.webview.postMessage({type:"mcpPort",port:e})}get _tid(){return w.getActiveTabId()??0}resolveWebviewView(e,n,a){this._view=e,e.webview.options={enableScripts:!0,localResourceRoots:[this._context.extensionUri]},e.webview.html=this._getHtml(),e.webview.onDidReceiveMessage(async s=>{switch(s.type){case"openGrid":await i.commands.executeCommand("terminalGrid.openCustomGrid",s.rows,s.cols),this.sendConfig();break;case"reload":await i.commands.executeCommand("workbench.action.reloadWindow");break;case"setConfig":{let t=i.workspace.getConfiguration("terminalGrid");s.key&&s.value!==void 0&&await t.update(s.key,s.value,i.ConfigurationTarget.Global),s.key==="shellType"&&x.currentPanel&&x.currentPanel.restartAllCells();break}case"getConfig":{this.sendConfig();break}case"browseFont":{let t=await i.window.showOpenDialog({canSelectMany:!1,filters:{"Font Files":["ttf","otf","woff","woff2"]},title:i.l10n.t("Select Font File")});if(!t||t.length===0)break;let r=t[0].fsPath,g=R.extname(r).toLowerCase();if(!De.includes(g)){i.window.showWarningMessage(i.l10n.t("Unsupported font format. Use .ttf, .otf, .woff, or .woff2"));break}try{_.accessSync(r,_.constants.R_OK)}catch{i.window.showErrorMessage(i.l10n.t("Cannot read font file."));break}let l=R.basename(r,g),b=this._context.globalState.get("customFonts",[]);b.some(m=>m.path===r)||(b.push({name:l,path:r}),await this._context.globalState.update("customFonts",b)),this.sendConfig(),x.currentPanel&&x.currentPanel.loadCustomFonts([{name:l,path:r}]);break}case"removeFont":{let r=this._context.globalState.get("customFonts",[]).filter(g=>g.name!==s.name);await this._context.globalState.update("customFonts",r),this.sendConfig();break}case"addStartupCommand":{let t=p.getStartupCommands(this._tid);t.push({command:s.command,count:1}),await p.setStartupCommands(this._tid,t),this.sendConfig();break}case"removeStartupCommand":{let t=p.getStartupCommands(this._tid);t.splice(s.index,1),await p.setStartupCommands(this._tid,t),this.sendConfig();break}case"updateCommandCount":{let t=p.getStartupCommands(this._tid);t[s.index]&&(t[s.index].count=Math.max(1,s.count),await p.setStartupCommands(this._tid,t)),this.sendConfig();break}case"addStep":{if(s.target==="all"){let t=p.getDefaultSteps(this._tid);t.push(s.step),await p.setDefaultSteps(this._tid,t);let r=t.find(g=>g.type==="command");await p.setDefaultCommand(this._tid,r?.input||"")}else{let t=p.getCellOverrides(this._tid),r=s.target;t[r]||(t[r]={}),Array.isArray(t[r].startupSteps)||(t[r].startupSteps=[]),t[r].startupSteps.push(s.step);let g=t[r].startupSteps.find(l=>l.type==="command");t[r].startupCommand=g?.input||"",await p.setCellOverrides(this._tid,t)}this.sendConfig();break}case"removeStep":{if(s.target==="all"){let t=p.getDefaultSteps(this._tid);t.splice(s.index,1),await p.setDefaultSteps(this._tid,t);let r=t.find(g=>g.type==="command");await p.setDefaultCommand(this._tid,r?.input||"")}else{let t=p.getCellOverrides(this._tid),r=s.target;if(Array.isArray(t[r]?.startupSteps)){t[r].startupSteps.splice(s.index,1);let g=t[r].startupSteps.find(l=>l.type==="command");t[r].startupCommand=g?.input||"",await p.setCellOverrides(this._tid,t)}}this.sendConfig();break}case"reorderSteps":{if(s.target==="all"){await p.setDefaultSteps(this._tid,s.steps);let t=s.steps.find(r=>r.type==="command");await p.setDefaultCommand(this._tid,t?.input||"")}else{let t=p.getCellOverrides(this._tid),r=s.target;t[r]||(t[r]={}),t[r].startupSteps=s.steps;let g=s.steps.find(l=>l.type==="command");t[r].startupCommand=g?.input||"",await p.setCellOverrides(this._tid,t)}this.sendConfig();break}case"updateStep":{if(s.target==="all"){let t=p.getDefaultSteps(this._tid);s.index>=0&&s.index<t.length&&(t[s.index]=s.step,await p.setDefaultSteps(this._tid,t))}else{let t=p.getCellOverrides(this._tid),r=s.target,g=t[r]?.startupSteps||[];s.index>=0&&s.index<g.length&&(g[s.index]=s.step,t[r]||(t[r]={}),t[r].startupSteps=g,await p.setCellOverrides(this._tid,t))}this.sendConfig();break}case"addProject":{let t=this._context.globalState.get("projects",[]);t.some(r=>r.path===s.path)||(t.push({name:s.name,path:s.path}),await this._context.globalState.update("projects",t)),this.sendConfig();break}case"removeProject":{let t=this._context.globalState.get("projects",[]);t.splice(s.index,1),await this._context.globalState.update("projects",t),this.sendConfig();break}case"openProject":{let t=i.Uri.file(s.path);await i.commands.executeCommand("vscode.openFolder",t,{forceNewWindow:!!s.newWindow});break}case"addCurrentProject":{let t=i.workspace.workspaceFolders?.[0];if(!t){i.window.showWarningMessage(i.l10n.t("No workspace folder open."));break}let r=this._context.globalState.get("projects",[]),g=t.uri.fsPath;r.some(l=>l.path===g)||(r.push({name:t.name,path:g}),await this._context.globalState.update("projects",r)),this.sendConfig();break}case"browseProject":{let t=await i.window.showOpenDialog({canSelectFiles:!1,canSelectFolders:!0,canSelectMany:!1,title:i.l10n.t("Select Project Folder")});if(!t||t.length===0)break;let r=t[0].fsPath,g=R.basename(r),l=this._context.globalState.get("projects",[]);l.some(b=>b.path===r)||(l.push({name:g,path:r}),await this._context.globalState.update("projects",l)),this.sendConfig();break}case"savePreset":{await this._savePreset(s.name),this.sendConfig();break}case"loadPreset":{let r=this._context.globalState.get("presets",[]).find(d=>d.name===s.name);if(!r)break;let g=w.getActiveTabId(),l=g??E.next(this._context),b=g!==void 0?w.entries().findIndex(([d])=>d===g):-1;w.getActive()?.dispose();let m=i.workspace.getConfiguration("terminalGrid");if(await m.update("defaultRows",r.rows,i.ConfigurationTarget.Global),await m.update("defaultCols",r.cols,i.ConfigurationTarget.Global),await m.update("zoomPercent",r.zoomPercent,i.ConfigurationTarget.Global),await m.update("fontFamily",r.fontFamily,i.ConfigurationTarget.Global),await m.update("backgroundColor",r.bgColor,i.ConfigurationTarget.Global),await m.update("foregroundColor",r.fgColor,i.ConfigurationTarget.Global),await m.update("colorTheme",r.colorTheme||"",i.ConfigurationTarget.Global),await m.update("shellType",r.shellType||"",i.ConfigurationTarget.Global),await p.setStartupCommands(l,r.startupCommands||[]),await p.setCellLabels(l,r.cellLabels||[]),await p.setDefaultCommand(l,r.defaultCommand||""),r.defaultSteps?await p.setDefaultSteps(l,r.defaultSteps):r.defaultCommand?await p.setDefaultSteps(l,[{type:"command",input:r.defaultCommand}]):await p.setDefaultSteps(l,[]),r.cellStepsOverrides){let d={};for(let[f,v]of Object.entries(r.cellStepsOverrides))d[Number(f)]={},Array.isArray(v.startupSteps)&&(d[Number(f)].startupSteps=v.startupSteps);await p.setCellOverrides(l,d)}else await p.setCellOverrides(l,{});await p.setMergedRegions(l,r.mergedRegions||[]),x.createOrShow(this._context,r.rows,r.cols,{forceNewTab:!0,tabIdOverride:l,positionOverride:b>=0?b:void 0}),this.sendConfig();break}case"deletePreset":{let r=this._context.globalState.get("presets",[]).filter(l=>l.name!==s.name);await this._context.globalState.update("presets",r);let g=this._context.globalState.get("projectPresets",{});for(let l of Object.keys(g))g[l]===s.name&&delete g[l];await this._context.globalState.update("projectPresets",g),this.sendConfig();break}case"linkPreset":{let t=this._context.globalState.get("projectPresets",{});s.presetName?t[s.projectPath]=s.presetName:delete t[s.projectPath],await this._context.globalState.update("projectPresets",t),this.sendConfig();break}case"broadcast":{x.currentPanel?x.currentPanel.broadcastInput(s.text):i.window.showWarningMessage(i.l10n.t("No terminal grid is open."));break}case"broadcastToCell":{if(x.currentPanel)for(let t of s.cellIds)x.currentPanel.sendInputToCell(t,s.text);else i.window.showWarningMessage(i.l10n.t("No terminal grid is open."));break}case"setCellConfig":{let t=p.getCellOverrides(this._tid);if(t[s.cellId]={bgColor:s.bgColor||"",fgColor:s.fgColor||"",fontFamily:s.fontFamily||"",themeName:s.themeName||"",shellType:t[s.cellId]?.shellType||""},await p.setCellOverrides(this._tid,t),x.currentPanel){let r=s.themeName?A(s.themeName):null;x.currentPanel.sendCellConfig(s.cellId,s.bgColor||"",s.fgColor||"",s.fontFamily||"",s.themeName||"",r)}break}case"setShellForCell":{let t=p.getCellOverrides(this._tid);t[s.cellId]||(t[s.cellId]={}),t[s.cellId].shellType=s.shellType||"",await p.setCellOverrides(this._tid,t),x.currentPanel&&x.currentPanel.restartCell(s.cellId);break}case"setDefaultCommand":{let t=s.command||"";await p.setDefaultCommand(this._tid,t),await p.setDefaultSteps(this._tid,t?[{type:"command",input:t}]:[]),this.sendConfig();break}case"setCellCommand":{let t=p.getCellOverrides(this._tid);t[s.cellId]||(t[s.cellId]={});let r=s.command||"";t[s.cellId].startupCommand=r,t[s.cellId].startupSteps=r?[{type:"command",input:r}]:[],await p.setCellOverrides(this._tid,t),this.sendConfig();break}case"clearAllCellOverrides":{await p.setCellOverrides(this._tid,{}),x.currentPanel&&x.currentPanel.clearCellOverrides();break}case"clearAllCellShells":{let t=p.getCellOverrides(this._tid);for(let r of Object.keys(t))t[parseInt(r)]&&(t[parseInt(r)].shellType="");await p.setCellOverrides(this._tid,t);break}case"saveMergeRegions":{let t=s.regions||[];await p.setMergedRegions(this._tid,t);let r=i.workspace.getConfiguration("terminalGrid").get("defaultCols",3),g=new Set;for(let l of t)for(let b=l.startRow;b<l.startRow+l.rowSpan;b++)for(let m=l.startCol;m<l.startCol+l.colSpan;m++)b===l.startRow&&m===l.startCol||g.add(b*r+m);if(g.size>0){let l=p.getCellOverrides(this._tid),b=p.getCellLabels(this._tid),m=!1;for(let d of g)l[String(d)]&&(delete l[String(d)],m=!0),b[d]&&(b[d]="",m=!0);m&&(await p.setCellOverrides(this._tid,l),await p.setCellLabels(this._tid,b))}this.sendConfig();break}case"saveSectionStates":{await this._context.globalState.update("sectionStates",s.states);break}case"registerMcpDesktop":{let t=await this._registerMcpInConfig("desktop");this._view?.webview.postMessage({type:"mcpRegisterResult",target:"desktop",...t});break}case"checkMcpRegistration":{let t=this._checkMcpRegistration();this._view?.webview.postMessage({type:"mcpRegistrationStatus",...t});break}case"unregisterMcpDesktop":{let t=await this._unregisterMcpInConfig("desktop");this._view?.webview.postMessage({type:"mcpUnregisterResult",target:"desktop",...t});break}case"switchTab":{let t=w.get(s.tabId);t&&t.reveal();break}case"newTab":{let t=w.getActive(),r=i.workspace.getConfiguration("terminalGrid"),g=t?.getRows()??r.get("defaultRows",2),l=t?.getCols()??r.get("defaultCols",3);x.createOrShow(this._context,g,l,{forceNewTab:!0});break}case"duplicateTab":{let t=w.getActive();if(!t)break;let r=t.getRows(),g=t.getCols(),l=t.getTabId(),b=E.next(this._context);await p.cloneTab(l,b),x.createOrShow(this._context,r,g,{forceNewTab:!0,tabIdOverride:b}),i.window.showInformationMessage(i.l10n.t("Tab duplicated. Terminal history is not copied; cells will start with the configured startup commands."));break}case"removeTab":{if(w.size()<=1)break;let t=w.get(s.tabId);if(!t)break;await p.deleteTab(s.tabId),t.dispose();break}case"renameTab":{if(typeof s.name!="string"||!w.get(s.tabId))break;await p.setTabName(s.tabId,s.name.trim());for(let[,r]of w.entries())r.refreshTitle();this.sendConfig();break}case"installNodePty":{try{await i.window.withProgress({location:i.ProgressLocation.Notification,title:i.l10n.t("Installing node-pty\u2026"),cancellable:!1},()=>new Promise((g,l)=>{ge.exec("npm install node-pty",{cwd:this._context.extensionPath},b=>{b?l(b):g()})})),this._view?.webview.postMessage({type:"ptyInstallResult",success:!0});let t=i.l10n.t("Reload Window");await i.window.showInformationMessage(i.l10n.t("node-pty installed successfully. Reload window to activate."),t)===t&&i.commands.executeCommand("workbench.action.reloadWindow")}catch(t){let r=t instanceof Error?t.message:String(t);i.window.showErrorMessage(i.l10n.t("node-pty install failed: {0}",r)),this._view?.webview.postMessage({type:"ptyInstallResult",success:!1})}break}}}),i.workspace.onDidChangeConfiguration(s=>{s.affectsConfiguration("terminalGrid")&&this.sendConfig()})}async _savePreset(e){let n=i.workspace.getConfiguration("terminalGrid"),a={name:e,rows:n.get("defaultRows",2),cols:n.get("defaultCols",3),startupCommands:p.getStartupCommands(this._tid),cellLabels:p.getCellLabels(this._tid),zoomPercent:n.get("zoomPercent",100),fontFamily:n.get("fontFamily",""),bgColor:n.get("backgroundColor",""),fgColor:n.get("foregroundColor",""),colorTheme:n.get("colorTheme",""),shellType:n.get("shellType",""),defaultCommand:p.getDefaultCommand(this._tid),defaultSteps:p.getDefaultSteps(this._tid),cellStepsOverrides:p.getCellOverrides(this._tid),mergedRegions:p.getMergedRegions(this._tid)},s=this._context.globalState.get("presets",[]),t=s.findIndex(r=>r.name===e);t>=0?s[t]=a:s.push(a),await this._context.globalState.update("presets",s)}async _migrateSteps(){let e=!1,n=p.getDefaultSteps(this._tid),a=p.getDefaultCommand(this._tid);a&&n.length===0?(await p.setDefaultSteps(this._tid,[{type:"command",input:a}]),await p.setDefaultCommand(this._tid,""),e=!0):a&&n.length>0&&(await p.setDefaultCommand(this._tid,""),e=!0);let s=p.getCellOverrides(this._tid);for(let r of Object.keys(s)){let g=s[Number(r)];if(!g)continue;let l=g.startupCommand,b=g.startupSteps;l&&(!b||b.length===0)?(g.startupSteps=[{type:"command",input:l}],delete g.startupCommand,e=!0):l&&b&&b.length>0&&(delete g.startupCommand,e=!0)}p.getStartupCommands(this._tid).length>0&&(await p.setStartupCommands(this._tid,[]),e=!0),e&&await p.setCellOverrides(this._tid,s)}_getClaudeDesktopConfigPath(){return o._claudeDesktopConfigPath()}static _claudeDesktopConfigPath(){let e=process.platform;return e==="win32"?R.join(process.env.APPDATA||R.join(Y.homedir(),"AppData","Roaming"),"Claude","claude_desktop_config.json"):e==="darwin"?R.join(Y.homedir(),"Library","Application Support","Claude","claude_desktop_config.json"):R.join(Y.homedir(),".config","Claude","claude_desktop_config.json")}static autoCleanupStaleRegistration(){let e=o._claudeDesktopConfigPath();if(_.existsSync(e))try{let n=_.readFileSync(e,"utf-8"),a=JSON.parse(n),s=a.mcpServers?.["terminal-grid"];if(!s)return;let t=s.args?.[0];t&&!_.existsSync(t)&&(delete a.mcpServers["terminal-grid"],_.writeFileSync(e,JSON.stringify(a,null,2),"utf-8"))}catch{}}_getMcpServerEntry(){let e=this._mcpPort||i.workspace.getConfiguration("terminalGrid").get("apiPort",7890);return{command:"node",args:[R.join(this._context.extensionPath,"mcp-server.js")],env:{TERMINAL_GRID_PORT:String(e)}}}_checkMcpRegistration(){let e=this._getClaudeDesktopConfigPath(),n=!1;try{if(_.existsSync(e)){let a=_.readFileSync(e,"utf-8");n=!!JSON.parse(a)?.mcpServers?.["terminal-grid"]}}catch{}return{desktop:n}}async _registerMcpInConfig(e){let n=this._getClaudeDesktopConfigPath(),a=this._getMcpServerEntry();try{let s=R.dirname(n);_.existsSync(s)||_.mkdirSync(s,{recursive:!0});let t={};if(_.existsSync(n)){let r=_.readFileSync(n,"utf-8");t=JSON.parse(r)}return t.mcpServers||(t.mcpServers={}),t.mcpServers["terminal-grid"]=a,_.writeFileSync(n,JSON.stringify(t,null,2),"utf-8"),i.window.showInformationMessage(i.l10n.t("Terminal Grid MCP server registered in Claude Desktop. Restart Claude Desktop to activate.")),{success:!0,message:"registered"}}catch(s){let t=s instanceof Error?s.message:String(s);return i.window.showErrorMessage(i.l10n.t("Failed to register MCP server: {0}",t)),{success:!1,message:t}}}async _unregisterMcpInConfig(e){let n=this._getClaudeDesktopConfigPath();try{if(!_.existsSync(n))return{success:!0,message:"not-registered"};let a=_.readFileSync(n,"utf-8"),s=JSON.parse(a),t=s.mcpServers;return t&&"terminal-grid"in t&&(delete t["terminal-grid"],_.writeFileSync(n,JSON.stringify(s,null,2),"utf-8")),i.window.showInformationMessage(i.l10n.t("Terminal Grid MCP server unregistered from Claude Desktop. Restart Claude Desktop to apply.")),{success:!0,message:"unregistered"}}catch(a){let s=a instanceof Error?a.message:String(a);return i.window.showErrorMessage(i.l10n.t("Failed to unregister MCP server: {0}",s)),{success:!1,message:s}}}sendConfig(){if(!this._view)return;this._migrateSteps();let e=i.workspace.getConfiguration("terminalGrid"),n=this._context.globalState.get("customFonts",[]),a=p.getStartupCommands(this._tid),s=this._context.globalState.get("projects",[]),t=this._context.globalState.get("presets",[]),r=this._context.globalState.get("projectPresets",{}),g=p.getCellLabels(this._tid),l=p.getCellOverrides(this._tid),b=p.getDefaultSteps(this._tid),m=this._context.globalState.get("sectionStates",{}),d=i.workspace.workspaceFolders?.[0]?.uri.fsPath||"",f=x.currentPanel,v=x.getAvailableShells();this._view.webview.postMessage({type:"configValues",zoom:e.get("zoomPercent",100),fontFamily:e.get("fontFamily",""),bgColor:e.get("backgroundColor",""),fgColor:e.get("foregroundColor",""),colorTheme:e.get("colorTheme",""),shellType:e.get("shellType",""),defaultCommand:p.getDefaultCommand(this._tid),themeNames:ie,availableShells:v.map(c=>({name:c.name,path:c.path})),customFonts:n.map(c=>c.name),startupCommands:a,projects:s,presets:t,projectPresets:r,cellLabels:g,cellOverrides:l,defaultSteps:b,sectionStates:m,workspacePath:d,gridRows:f?.getRows()??0,gridCols:f?.getCols()??0,tabs:w.entries().map(([c,h])=>({tabId:c,rows:h.getRows(),cols:h.getCols(),name:p.getTabName(c)})),activeTabId:w.getActiveTabId()??null,mergedRegions:p.getMergedRegions(this._tid),hiddenCells:(()=>{let c=p.getMergedRegions(this._tid),h=e.get("defaultCols",3),S=[];for(let C of c)for(let I=C.startRow;I<C.startRow+C.rowSpan;I++)for(let k=C.startCol;k<C.startCol+C.colSpan;k++)I===C.startRow&&k===C.startCol||S.push(I*h+k);return S})()})}_getHtml(){let e=Pe();return`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -644,25 +622,116 @@
       background: rgba(255,170,0,.3);
       border-color: rgba(255,170,0,.5);
     }
+    /* \u2500\u2500 Tabs card \u2500\u2500 */
+    .tabs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tabs-empty {
+      font-size: 11px;
+      opacity: .5;
+      text-align: center;
+      padding: 12px 0;
+    }
+    .tab-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      cursor: pointer;
+      font-size: 11px;
+      transition: background .15s, border-color .15s;
+      user-select: none;
+    }
+    .tab-item:hover {
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.15);
+    }
+    .tab-item.active {
+      background: rgba(100,170,255,.12);
+      border-color: rgba(100,170,255,.35);
+    }
+    .tab-item-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tab-item-meta {
+      opacity: .55;
+      margin-left: 6px;
+      font-size: 10px;
+    }
+    .tab-item-close {
+      background: transparent;
+      border: none;
+      color: inherit;
+      opacity: .5;
+      cursor: pointer;
+      padding: 2px 6px;
+      margin-left: 6px;
+      border-radius: 3px;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .tab-item-close:hover:not(:disabled) {
+      background: rgba(255,80,80,.2);
+      opacity: 1;
+    }
+    .tab-item-close:disabled {
+      opacity: .2;
+      cursor: not-allowed;
+    }
+    .tab-item-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(0,0,0,.3);
+      border: 1px solid rgba(100,170,255,.6);
+      color: inherit;
+      font-size: 11px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      outline: none;
+      font-family: inherit;
+    }
+    .tab-item-input:focus {
+      border-color: rgba(100,170,255,.9);
+      background: rgba(0,0,0,.4);
+    }
+    .tab-item.editing {
+      background: rgba(100,170,255,.18);
+      border-color: rgba(100,170,255,.5);
+    }
+    .section-active-tab {
+      font-size: 10px;
+      opacity: .6;
+      margin-left: 6px;
+      font-weight: normal;
+      color: rgba(100,170,255,.9);
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    ${pe()?"":`
+    ${Me()?"":`
     <div class="pty-banner" id="ptyBanner">
       <span class="pty-banner-icon">\u26A0</span>
-      <span class="pty-banner-text">${a.l10n.t("node-pty is required to use Terminal Grid.")}</span>
-      <button class="pty-banner-btn" id="ptyInstallBtn">${a.l10n.t("Install")}</button>
+      <span class="pty-banner-text">${i.l10n.t("node-pty is required to use Terminal Grid.")}</span>
+      <button class="pty-banner-btn" id="ptyInstallBtn">${i.l10n.t("Install")}</button>
     </div>
     `}
     <!-- Projects -->
     <div class="glass-card" data-section="projects">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Projects")}</div>
+        <div class="section-label">${i.l10n.t("Projects")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Register projects and click to switch folders. Ctrl+Click to open in a new window. If a preset is linked, it will be auto-applied on switch.")}
+            ${i.l10n.t("Register projects and click to switch folders. Ctrl+Click to open in a new window. If a preset is linked, it will be auto-applied on switch.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
@@ -674,10 +743,35 @@
         <div id="projectList" class="cmd-list"></div>
         <div class="btn-group" style="gap: 6px;">
           <button class="glass-btn" id="addCurrentProjectBtn" style="font-size: 11px; padding: 8px 10px;">
-            <span class="btn-icon" style="font-size: 12px;">+</span> ${a.l10n.t("Add Current Folder")}
+            <span class="btn-icon" style="font-size: 12px;">+</span> ${i.l10n.t("Add Current Folder")}
           </button>
           <button class="glass-btn" id="browseProjectBtn" style="font-size: 11px; padding: 8px 10px;">
-            <span class="btn-icon" style="font-size: 12px;">&#128193;</span> ${a.l10n.t("Browse Folder")}
+            <span class="btn-icon" style="font-size: 12px;">&#128193;</span> ${i.l10n.t("Browse Folder")}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs (multi-grid management) -->
+    <div class="glass-card collapsed" data-section="tabs">
+      <div class="section-header collapsible">
+        <div class="section-label">${i.l10n.t("Tabs")}</div>
+        <span class="tip-wrap">
+          <span class="tip-icon">?</span>
+          <div class="tip-bubble">
+            ${i.l10n.t("Manage multiple grid tabs \u2014 each tab keeps its own labels, cell settings, merges, and startup steps. Click a tab to focus it, right-click or double-click to rename. + opens a new empty tab, \u29C9 duplicates the active tab, \xD7 closes a tab (last tab can't be closed).")}
+          </div>
+        </span>
+        <span class="collapse-icon">\u25BE</span>
+      </div>
+      <div class="section-body">
+        <div id="tabsList" class="tabs-list"></div>
+        <div class="tabs-actions" style="display: flex; gap: 6px; margin-top: 8px;">
+          <button class="glass-btn" id="newTabBtn" title="${i.l10n.t("New tab (same size as active)")}" style="font-size: 11px; padding: 8px 10px; flex: 1;">
+            <span class="btn-icon">+</span> ${i.l10n.t("New Tab")}
+          </button>
+          <button class="glass-btn" id="duplicateTabBtn" title="${i.l10n.t("Duplicate active tab (copies labels, overrides, merges, startup)")}" style="font-size: 11px; padding: 8px 10px; flex: 1;">
+            <span class="btn-icon">\u29C9</span> ${i.l10n.t("Duplicate")}
           </button>
         </div>
       </div>
@@ -685,11 +779,11 @@
 
     <div class="glass-card" data-section="gridSize">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Select Grid Size")}</div>
+        <div class="section-label">${i.l10n.t("Select Grid Size")} <span id="gridSizeActiveLabel" class="section-active-tab"></span></div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Hover to select the desired rows\xD7cols size. Supports up to 4\xD75 (20 cells). Grid opens as an editor tab, each cell is an independent terminal. Drag cells below to merge them into one larger terminal.")}
+            ${i.l10n.t("Hover to select the desired rows\xD7cols size. Supports up to 4\xD75 (20 cells). Grid opens as an editor tab, each cell is an independent terminal. Drag cells below to merge them into one larger terminal.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
@@ -702,30 +796,30 @@
         <div class="merge-row">
           <div class="merge-grid" id="mergeGrid"></div>
           <div class="merge-side">
-            <button class="glass-btn" id="mergeBtn" disabled>${a.l10n.t("Merge")}</button>
-            <button class="glass-btn" id="unmergeBtn" disabled>${a.l10n.t("Unmerge")}</button>
-            <button class="glass-btn" id="mergeClearBtn">${a.l10n.t("Clear")}</button>
+            <button class="glass-btn" id="mergeBtn" disabled>${i.l10n.t("Merge")}</button>
+            <button class="glass-btn" id="unmergeBtn" disabled>${i.l10n.t("Unmerge")}</button>
+            <button class="glass-btn" id="mergeClearBtn">${i.l10n.t("Clear")}</button>
           </div>
         </div>
         <div class="merge-bottom">
           <div class="merge-legend">
-            <div class="merge-legend-item"><div class="merge-legend-swatch sel"></div> ${a.l10n.t("Selection")}</div>
-            <div class="merge-legend-item"><div class="merge-legend-swatch mrg"></div> ${a.l10n.t("Merged")}</div>
+            <div class="merge-legend-item"><div class="merge-legend-swatch sel"></div> ${i.l10n.t("Selection")}</div>
+            <div class="merge-legend-item"><div class="merge-legend-swatch mrg"></div> ${i.l10n.t("Merged")}</div>
           </div>
         </div>
         <button class="glass-btn primary" id="openGridBtn">
-          <span class="btn-icon">&#9654;</span> ${a.l10n.t("Open Grid")}
+          <span class="btn-icon">&#9654;</span> ${i.l10n.t("Open Grid")}
         </button>
       </div>
     </div>
 
     <div class="glass-card collapsed" data-section="mcpRegister">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("MCP Registration")}</div>
+        <div class="section-label">${i.l10n.t("MCP Registration")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.")}
+            ${i.l10n.t("Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
@@ -733,25 +827,25 @@
       <div class="section-body">
         <div id="mcpRegStatus" style="font-size: 11px; opacity: .6; margin-bottom: 10px;"></div>
         <button class="glass-btn" id="registerMcpDesktopBtn">
-          <span class="btn-icon">&#9889;</span> ${a.l10n.t("Register in Claude Desktop")}
+          <span class="btn-icon">&#9889;</span> ${i.l10n.t("Register in Claude Desktop")}
         </button>
       </div>
     </div>
 
     <div class="glass-card" data-section="settings">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Terminal Settings")}</div>
+        <div class="section-label">${i.l10n.t("Terminal Settings")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Zoom: Global font size (50\u2013300%). Font/Color: Use tabs for global or per-cell settings. Changes in All tab apply to all cells. Set global first, then customize individual cells. Individual cells can be zoomed separately with Ctrl+Wheel.")}
+            ${i.l10n.t("Zoom: Global font size (50\u2013300%). Font/Color: Use tabs for global or per-cell settings. Changes in All tab apply to all cells. Set global first, then customize individual cells. Individual cells can be zoomed separately with Ctrl+Wheel.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
       </div>
       <div class="section-body">
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Zoom")}</span>
+          <span class="setting-label">${i.l10n.t("Zoom")}</span>
           <div class="stepper">
             <button class="stepper-btn" id="zoomDown">\u2212</button>
             <span class="stepper-val" id="zoomVal">100%</span>
@@ -762,10 +856,10 @@
         <div id="settingsTabs" class="settings-tabs hidden"></div>
 
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Theme")}</span>
+          <span class="setting-label">${i.l10n.t("Theme")}</span>
           <div class="font-picker" id="themePicker">
             <div class="font-display" id="themeDisplay">
-              <span class="font-display-text" id="themeDisplayText">${a.l10n.t("IDE Default")}</span>
+              <span class="font-display-text" id="themeDisplayText">${i.l10n.t("IDE Default")}</span>
               <span class="font-display-arrow">\u25B2</span>
             </div>
             <div class="font-dropdown" id="themeDropdown"></div>
@@ -773,10 +867,10 @@
         </div>
 
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Font")}</span>
+          <span class="setting-label">${i.l10n.t("Font")}</span>
           <div class="font-picker" id="fontPicker">
             <div class="font-display" id="fontDisplay">
-              <span class="font-display-text" id="fontDisplayText">${a.l10n.t("IDE Default")}</span>
+              <span class="font-display-text" id="fontDisplayText">${i.l10n.t("IDE Default")}</span>
               <span class="font-display-arrow">\u25B2</span>
             </div>
             <div class="font-dropdown" id="fontDropdown"></div>
@@ -784,26 +878,26 @@
         </div>
 
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Back Color")}</span>
+          <span class="setting-label">${i.l10n.t("Back Color")}</span>
           <div class="color-row">
             <div class="color-swatch" id="bgSwatch">
               <div class="color-swatch-fill" id="bgSwatchFill"></div>
               <input type="color" id="bgColorInput" value="#1e1e1e">
             </div>
-            <span class="color-val" id="bgVal">${a.l10n.t("IDE Default")}</span>
-            <button class="color-reset hidden" id="bgReset" title="${a.l10n.t("Reset to IDE Default")}">\xD7</button>
+            <span class="color-val" id="bgVal">${i.l10n.t("IDE Default")}</span>
+            <button class="color-reset hidden" id="bgReset" title="${i.l10n.t("Reset to IDE Default")}">\xD7</button>
           </div>
         </div>
 
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Font Color")}</span>
+          <span class="setting-label">${i.l10n.t("Font Color")}</span>
           <div class="color-row">
             <div class="color-swatch" id="fgSwatch">
               <div class="color-swatch-fill" id="fgSwatchFill"></div>
               <input type="color" id="fgColorInput" value="#cccccc">
             </div>
-            <span class="color-val" id="fgVal">${a.l10n.t("IDE Default")}</span>
-            <button class="color-reset hidden" id="fgReset" title="${a.l10n.t("Reset to IDE Default")}">\xD7</button>
+            <span class="color-val" id="fgVal">${i.l10n.t("IDE Default")}</span>
+            <button class="color-reset hidden" id="fgReset" title="${i.l10n.t("Reset to IDE Default")}">\xD7</button>
           </div>
         </div>
 
@@ -813,11 +907,11 @@
     <!-- Startup Commands -->
     <div class="glass-card" data-section="startup">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Startup Commands")}</div>
+        <div class="section-label">${i.l10n.t("Startup Commands")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Set shell type and startup command per cell. Use All tab for global defaults, or individual tabs for per-cell overrides.")}
+            ${i.l10n.t("Set shell type and startup command per cell. Use All tab for global defaults, or individual tabs for per-cell overrides.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
@@ -825,19 +919,19 @@
       <div class="section-body">
         <div id="cmdTabs" class="settings-tabs hidden"></div>
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Shell")}</span>
+          <span class="setting-label">${i.l10n.t("Shell")}</span>
           <div class="font-picker" id="shellPicker">
             <div class="font-display" id="shellDisplay">
-              <span class="font-display-text" id="shellDisplayText">${a.l10n.t("IDE Default")}</span>
+              <span class="font-display-text" id="shellDisplayText">${i.l10n.t("IDE Default")}</span>
               <span class="font-display-arrow">\u25B2</span>
             </div>
             <div class="font-dropdown" id="shellDropdown"></div>
           </div>
         </div>
         <div class="setting-row">
-          <span class="setting-label">${a.l10n.t("Command")}</span>
+          <span class="setting-label">${i.l10n.t("Command")}</span>
           <select class="glass-select" id="cmdPreset" style="flex:1;min-width:0;">
-            <option value="">${a.l10n.t("Select command\u2026")}</option>
+            <option value="">${i.l10n.t("Select command\u2026")}</option>
             <option value="claude">claude</option>
             <option value="claude --effort max">claude --effort max</option>
             <option value="codex">codex</option>
@@ -857,17 +951,17 @@
             <option value="yes">yes</option>
             <option value="exit">exit</option>
             <option value="__enter__">Enter (\u21B5)</option>
-            <option value="__custom__">${a.l10n.t("Custom command\u2026")}</option>
-            <option value="__timeout__">${a.l10n.t("Timeout (ms)\u2026")}</option>
+            <option value="__custom__">${i.l10n.t("Custom command\u2026")}</option>
+            <option value="__timeout__">${i.l10n.t("Timeout (ms)\u2026")}</option>
           </select>
         </div>
         <div class="cmd-add-row" id="cmdCustomRow" style="display:none;">
-          <input class="glass-input" id="cmdCustom" placeholder="${a.l10n.t("Custom command\u2026")}" style="flex:1;min-width:0;" />
-          <button class="stepper-btn" id="cmdApplyBtn" title="${a.l10n.t("Apply")}">&#10003;</button>
+          <input class="glass-input" id="cmdCustom" placeholder="${i.l10n.t("Custom command\u2026")}" style="flex:1;min-width:0;" />
+          <button class="stepper-btn" id="cmdApplyBtn" title="${i.l10n.t("Apply")}">&#10003;</button>
         </div>
         <div class="cmd-add-row" id="cmdTimeoutRow" style="display:none;">
-          <input class="glass-input" type="number" id="cmdTimeoutMs" placeholder="${a.l10n.t("Milliseconds (e.g. 1500)")}" min="100" step="100" style="flex:1;min-width:0;" />
-          <button class="stepper-btn" id="cmdTimeoutApplyBtn" title="${a.l10n.t("Apply")}">&#10003;</button>
+          <input class="glass-input" type="number" id="cmdTimeoutMs" placeholder="${i.l10n.t("Milliseconds (e.g. 1500)")}" min="100" step="100" style="flex:1;min-width:0;" />
+          <button class="stepper-btn" id="cmdTimeoutApplyBtn" title="${i.l10n.t("Apply")}">&#10003;</button>
         </div>
         <div class="cmd-summary-divider"></div>
         <div id="cmdSummaryList" class="cmd-summary-list"></div>
@@ -877,33 +971,33 @@
     <!-- Presets -->
     <div class="glass-card" data-section="presets">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Presets")}</div>
+        <div class="section-label">${i.l10n.t("Presets")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Save and load current grid settings (size, zoom, font, color, commands, cell labels) as presets. Use Link to project for per-project auto-apply.")}
+            ${i.l10n.t("Save and load current grid settings (size, zoom, font, color, commands, cell labels) as presets. Use Link to project for per-project auto-apply.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
       </div>
       <div class="section-body">
         <div class="cmd-add-row">
-          <input class="glass-input" id="presetNameInput" placeholder="${a.l10n.t("Preset name\u2026")}" style="flex: 1;" />
+          <input class="glass-input" id="presetNameInput" placeholder="${i.l10n.t("Preset name\u2026")}" style="flex: 1;" />
         </div>
         <div class="cmd-add-row" style="margin-top: 4px;">
           <select class="glass-select" id="presetSelect" style="flex: 1;">
-            <option value="">${a.l10n.t("Select preset\u2026")}</option>
+            <option value="">${i.l10n.t("Select preset\u2026")}</option>
           </select>
         </div>
         <div class="btn-group" style="gap: 6px; margin-top: 8px;">
           <div style="display: flex; gap: 6px;">
-            <button class="glass-btn" id="presetSaveBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${a.l10n.t("Save")}</button>
-            <button class="glass-btn primary" id="presetLoadBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${a.l10n.t("Load")}</button>
-            <button class="glass-btn" id="presetDeleteBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${a.l10n.t("Delete")}</button>
+            <button class="glass-btn" id="presetSaveBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${i.l10n.t("Save")}</button>
+            <button class="glass-btn primary" id="presetLoadBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${i.l10n.t("Load")}</button>
+            <button class="glass-btn" id="presetDeleteBtn" style="font-size: 11px; padding: 8px 10px; flex: 1;">${i.l10n.t("Delete")}</button>
           </div>
           <div id="presetLinkRow" style="display: flex; align-items: center; gap: 6px; font-size: 11px; opacity: .7; margin-top: 4px;">
             <input type="checkbox" id="presetLinkCheck" style="margin: 0;" />
-            <label id="presetLinkLabel" for="presetLinkCheck" style="cursor: pointer;">${a.l10n.t("Link to current project")}</label>
+            <label id="presetLinkLabel" for="presetLinkCheck" style="cursor: pointer;">${i.l10n.t("Link to current project")}</label>
           </div>
         </div>
       </div>
@@ -912,11 +1006,11 @@
     <!-- Broadcast Input -->
     <div class="glass-card" data-section="broadcast">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Broadcast Input")}</div>
+        <div class="section-label">${i.l10n.t("Broadcast Input")}</div>
         <span class="tip-wrap">
           <span class="tip-icon">?</span>
           <div class="tip-bubble">
-            ${a.l10n.t("Send text to selected terminals. Check All to send to all cells, uncheck for individual selection.")}
+            ${i.l10n.t("Send text to selected terminals. Check All to send to all cells, uncheck for individual selection.")}
           </div>
         </span>
         <span class="collapse-icon">\u25BE</span>
@@ -924,9 +1018,9 @@
       <div class="section-body">
         <div id="broadcastTargets" class="broadcast-targets hidden"></div>
         <div class="cmd-add-row" style="flex-direction: column; gap: 4px;">
-          <textarea class="glass-input" id="broadcastInput" placeholder="${a.l10n.t("Type command\u2026")}" rows="3" style="width: 100%; resize: vertical; font-family: var(--vscode-editor-fontFamily, monospace); font-size: 12px; line-height: 1.4;"></textarea>
+          <textarea class="glass-input" id="broadcastInput" placeholder="${i.l10n.t("Type command\u2026")}" rows="3" style="width: 100%; resize: vertical; font-family: var(--vscode-editor-fontFamily, monospace); font-size: 12px; line-height: 1.4;"></textarea>
           <div style="display: flex; justify-content: flex-end;">
-            <button class="stepper-btn" id="broadcastSendBtn" title="${a.l10n.t("Send")}" style="width: 50px;">${a.l10n.t("Send")}</button>
+            <button class="stepper-btn" id="broadcastSendBtn" title="${i.l10n.t("Send")}" style="width: 50px;">${i.l10n.t("Send")}</button>
           </div>
         </div>
       </div>
@@ -934,27 +1028,27 @@
 
     <div class="glass-card" data-section="actions">
       <div class="section-header collapsible">
-        <div class="section-label">${a.l10n.t("Actions")}</div>
+        <div class="section-label">${i.l10n.t("Actions")}</div>
         <span class="collapse-icon">\u25BE</span>
       </div>
       <div class="section-body">
         <div class="btn-group">
           <button class="glass-btn" id="reloadBtn">
-            <span class="btn-icon">&#8635;</span> ${a.l10n.t("Reload Window")}
+            <span class="btn-icon">&#8635;</span> ${i.l10n.t("Reload Window")}
           </button>
         </div>
       </div>
     </div>
 
     <div class="hint">
-      ${a.l10n.t(`Grid opens as an editor tab.
+      ${i.l10n.t(`Grid opens as an editor tab.
 Ctrl+Wheel to zoom individual cells.`).replace(`
 `,"<br>")}
     </div>
   </div>
 
   <script nonce="${e}">
-    var __i18n = ${JSON.stringify({installing:a.l10n.t("Installing\u2026"),ideDefault:a.l10n.t("IDE Default"),remove:a.l10n.t("Remove"),addFontFile:a.l10n.t("Add font file\u2026"),all:a.l10n.t("All"),noStartupCommands:a.l10n.t("No startup commands configured"),noProjects:a.l10n.t("No projects registered"),linkedPrefix:a.l10n.t("Linked: {0}"),linkToProject:a.l10n.t("Link to current project"),selectPreset:a.l10n.t("Select preset\u2026"),reload:a.l10n.t("Reload"),retry:a.l10n.t("Retry"),ptyInstalled:a.l10n.t("node-pty installed successfully!"),ptyInstalledHint:a.l10n.t("Reload the window to activate."),theme:a.l10n.t("Theme"),shellAuto:a.l10n.t("IDE Default"),shell:a.l10n.t("Shell"),mcpAlreadyRegistered:a.l10n.t("Registered in Claude Desktop"),mcpRegister:a.l10n.t("Register in Claude Desktop")})};
+    var __i18n = ${JSON.stringify({installing:i.l10n.t("Installing\u2026"),ideDefault:i.l10n.t("IDE Default"),remove:i.l10n.t("Remove"),addFontFile:i.l10n.t("Add font file\u2026"),all:i.l10n.t("All"),noStartupCommands:i.l10n.t("No startup commands configured"),noProjects:i.l10n.t("No projects registered"),linkedPrefix:i.l10n.t("Linked: {0}"),linkToProject:i.l10n.t("Link to current project"),selectPreset:i.l10n.t("Select preset\u2026"),reload:i.l10n.t("Reload"),retry:i.l10n.t("Retry"),ptyInstalled:i.l10n.t("node-pty installed successfully!"),ptyInstalledHint:i.l10n.t("Reload the window to activate."),theme:i.l10n.t("Theme"),shellAuto:i.l10n.t("IDE Default"),shell:i.l10n.t("Shell"),mcpAlreadyRegistered:i.l10n.t("Registered in Claude Desktop"),mcpRegister:i.l10n.t("Register in Claude Desktop"),mcpUnregister:i.l10n.t("Unregister"),mcpRegisteredStatus:i.l10n.t("\u2705 Registered in Claude Desktop")})};
     var vscode = acquireVsCodeApi();
 
     // node-pty install button
@@ -1025,30 +1119,27 @@ Ctrl+Wheel to zoom individual cells.`).replace(`
     var registerMcpDesktopBtn = document.getElementById('registerMcpDesktopBtn');
     var mcpAlreadyRegistered = false;
     registerMcpDesktopBtn.addEventListener('click', function() {
-      if (mcpAlreadyRegistered) {
-        vscode.postMessage({ type: 'showMcpAlreadyRegistered' });
-        return;
-      }
       registerMcpDesktopBtn.disabled = true;
       registerMcpDesktopBtn.style.opacity = '0.5';
-      vscode.postMessage({ type: 'registerMcpDesktop' });
+      if (mcpAlreadyRegistered) {
+        vscode.postMessage({ type: 'unregisterMcpDesktop' });
+      } else {
+        vscode.postMessage({ type: 'registerMcpDesktop' });
+      }
     });
     // Check registration status on load
     vscode.postMessage({ type: 'checkMcpRegistration' });
     function setMcpRegistered(registered) {
       mcpAlreadyRegistered = registered;
+      registerMcpDesktopBtn.disabled = false;
+      registerMcpDesktopBtn.style.opacity = '1';
+      registerMcpDesktopBtn.style.cursor = 'pointer';
       if (registered) {
-        mcpRegStatusEl.innerHTML = '';
-        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2705</span> ' + __i18n.mcpAlreadyRegistered;
-        registerMcpDesktopBtn.disabled = false;
-        registerMcpDesktopBtn.style.opacity = '0.65';
-        registerMcpDesktopBtn.style.cursor = 'default';
+        mcpRegStatusEl.innerHTML = __i18n.mcpRegisteredStatus;
+        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2716</span> ' + __i18n.mcpUnregister;
       } else {
         mcpRegStatusEl.innerHTML = '';
         registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">&#9889;</span> ' + __i18n.mcpRegister;
-        registerMcpDesktopBtn.disabled = false;
-        registerMcpDesktopBtn.style.opacity = '1';
-        registerMcpDesktopBtn.style.cursor = 'pointer';
       }
     }
 
@@ -2309,6 +2400,10 @@ Ctrl+Wheel to zoom individual cells.`).replace(`
       if (msg.type === 'mcpRegisterResult') {
         setMcpRegistered(msg.success);
       }
+      if (msg.type === 'mcpUnregisterResult') {
+        // On success, registered=false. On failure, keep current state.
+        setMcpRegistered(msg.success ? false : mcpAlreadyRegistered);
+      }
       if (msg.type === 'configValues') {
         curZoom = msg.zoom;
         curFontFamily = msg.fontFamily;
@@ -2325,6 +2420,133 @@ Ctrl+Wheel to zoom individual cells.`).replace(`
         workspacePath = msg.workspacePath || '';
         cellOverrides = msg.cellOverrides || {};
         defaultSteps = msg.defaultSteps || [];
+        // \u2500\u2500 Tabs card render + lazy button wiring \u2500\u2500
+        var tabs = msg.tabs || [];
+        var activeTabId = (msg.activeTabId !== undefined && msg.activeTabId !== null) ? msg.activeTabId : -1;
+        var tabsList = document.getElementById('tabsList');
+        if (tabsList) {
+          if (tabs.length === 0) {
+            tabsList.innerHTML = '<div class="tabs-empty">No grid open. Click Open Grid below.</div>';
+          } else {
+            tabsList.innerHTML = '';
+            tabs.forEach(function(tab, idx) {
+              var item = document.createElement('div');
+              item.className = 'tab-item' + (tab.tabId === activeTabId ? ' active' : '');
+              item.dataset.tabId = String(tab.tabId);
+              item.title = 'Click to focus \xB7 Right-click or double-click to rename';
+              var label = document.createElement('span');
+              label.className = 'tab-item-label';
+              var defaultLabel = 'Tab ' + (idx + 1);
+              var labelText = (tab.name && tab.name.length > 0) ? tab.name : defaultLabel;
+              label.textContent = labelText;
+              var meta = document.createElement('span');
+              meta.className = 'tab-item-meta';
+              meta.textContent = tab.rows + '\xD7' + tab.cols;
+              label.appendChild(meta);
+              var closeBtn = document.createElement('button');
+              closeBtn.className = 'tab-item-close';
+              closeBtn.textContent = '\xD7';
+              closeBtn.title = 'Close tab';
+              if (tabs.length <= 1) closeBtn.disabled = true;
+              closeBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (tabs.length <= 1) return;
+                vscode.postMessage({ type: 'removeTab', tabId: tab.tabId });
+              });
+              item.appendChild(label);
+              item.appendChild(closeBtn);
+              item.addEventListener('click', function() {
+                if (item.classList.contains('editing')) return;
+                vscode.postMessage({ type: 'switchTab', tabId: tab.tabId });
+              });
+              // Inline rename \u2014 keeps focus in the sidebar (no native dialog jump)
+              function startInlineRename() {
+                if (item.classList.contains('editing')) return;
+                item.classList.add('editing');
+                var input = document.createElement('input');
+                input.className = 'tab-item-input';
+                input.type = 'text';
+                input.value = tab.name || '';
+                input.placeholder = defaultLabel;
+                label.style.display = 'none';
+                closeBtn.style.display = 'none';
+                item.insertBefore(input, label);
+                // Defer focus so the contextmenu event finishes first
+                setTimeout(function() {
+                  input.focus();
+                  input.select();
+                }, 0);
+                var done = false;
+                function commit() {
+                  if (done) return;
+                  done = true;
+                  vscode.postMessage({ type: 'renameTab', tabId: tab.tabId, name: input.value });
+                  // Sidebar will re-render via configValues
+                }
+                function cancel() {
+                  if (done) return;
+                  done = true;
+                  item.classList.remove('editing');
+                  input.remove();
+                  label.style.display = '';
+                  closeBtn.style.display = '';
+                }
+                input.addEventListener('keydown', function(e) {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancel();
+                  }
+                });
+                input.addEventListener('blur', commit);
+                // Prevent input clicks from bubbling up to switchTab
+                input.addEventListener('click', function(e) { e.stopPropagation(); });
+                input.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+                input.addEventListener('dblclick', function(e) { e.stopPropagation(); });
+              }
+              item.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                startInlineRename();
+              });
+              item.addEventListener('dblclick', function(e) {
+                e.preventDefault();
+                startInlineRename();
+              });
+              tabsList.appendChild(item);
+            });
+          }
+        }
+        if (!window.__tgTabBtnsInit) {
+          window.__tgTabBtnsInit = true;
+          var nb = document.getElementById('newTabBtn');
+          if (nb) nb.addEventListener('click', function() {
+            vscode.postMessage({ type: 'newTab' });
+          });
+          var db = document.getElementById('duplicateTabBtn');
+          if (db) db.addEventListener('click', function() {
+            vscode.postMessage({ type: 'duplicateTab' });
+          });
+        }
+        // Surface "which tab am I editing?" in the Grid Size card header
+        var gridSizeActiveLabel = document.getElementById('gridSizeActiveLabel');
+        if (gridSizeActiveLabel) {
+          var activeText = '';
+          if (tabs.length > 0 && activeTabId !== -1) {
+            var activeIdx = tabs.findIndex(function(t) { return t.tabId === activeTabId; });
+            if (activeIdx >= 0) {
+              var activeTab = tabs[activeIdx];
+              var displayName = (activeTab.name && activeTab.name.length > 0)
+                ? activeTab.name
+                : ('Tab ' + (activeIdx + 1));
+              activeText = '\u2192 ' + displayName;
+            }
+          } else if (tabs.length === 0) {
+            activeText = '(no tab open)';
+          }
+          gridSizeActiveLabel.textContent = activeText;
+        }
         updateSettingsUI();
         renderProjectList();
         renderPresetDropdown();
@@ -2350,6 +2572,8 @@ Ctrl+Wheel to zoom individual cells.`).replace(`
     vscode.postMessage({ type: 'getConfig' });
   </script>
 </body>
-</html>`}};function ge(){let c="",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let s=0;s<32;s++)c+=e.charAt(Math.floor(Math.random()*e.length));return c}var q=T(require("http"));var G=class{constructor(e){this._server=null;this._port=e}start(e=10){return new Promise((s,l)=>{this._server=this._createServer();let n=t=>{this._server.removeAllListeners("error"),this._server.on("error",r=>{r.code==="EADDRINUSE"&&t<e?(this._port++,n(t+1)):l(r)}),this._server.listen(this._port,"127.0.0.1",()=>{let r=this._server.address();this._port=r.port,s(this._port)})};n(0)})}_createServer(){return q.createServer((e,s)=>{if(s.setHeader("Content-Type","application/json"),e.method==="OPTIONS"){s.writeHead(204),s.end();return}let l=new URL(e.url||"/",`http://127.0.0.1:${this._port}`);e.method==="GET"&&l.pathname==="/api/health"?(s.writeHead(200),s.end(JSON.stringify({status:"ok"}))):e.method==="GET"&&l.pathname==="/api/info"?this._handleInfo(s):e.method==="POST"&&l.pathname==="/api/send"?this._readBody(e).then(n=>this._handleSend(n,s)):e.method==="POST"&&l.pathname==="/api/read"?this._readBody(e).then(n=>this._handleRead(n,s)):e.method==="POST"&&l.pathname==="/api/broadcast"?this._readBody(e).then(n=>this._handleBroadcast(n,s)):(s.writeHead(404),s.end(JSON.stringify({error:"Not found"})))})}stop(){this._server?.close(),this._server=null}getPort(){return this._port}_handleInfo(e){let s=v.currentPanel;if(!s){e.writeHead(200),e.end(JSON.stringify({grid:null}));return}e.writeHead(200),e.end(JSON.stringify({grid:{rows:s.getRows(),cols:s.getCols(),cellCount:s.getCellCount(),cellLabels:s.getCellLabels()}}))}_handleSend(e,s){let l=v.currentPanel;if(!l){s.writeHead(200),s.end(JSON.stringify({success:!1,error:"No grid open"}));return}let n=typeof e.cellId=="number"?e.cellId:-1,t=typeof e.text=="string"?e.text:"",o=e.submit===!0?l.sendInputToCell(n,t):l.sendToCell(n,t);s.writeHead(200),s.end(JSON.stringify({success:o}))}_handleRead(e,s){let l=v.currentPanel;if(!l){s.writeHead(200),s.end(JSON.stringify({output:null,error:"No grid open"}));return}let n=typeof e.cellId=="number"?e.cellId:-1,t=typeof e.lines=="number"?e.lines:void 0,r=l.readCell(n,t);s.writeHead(200),s.end(JSON.stringify({output:r}))}_handleBroadcast(e,s){let l=v.currentPanel;if(!l){s.writeHead(200),s.end(JSON.stringify({success:!1,error:"No grid open"}));return}let n=typeof e.text=="string"?e.text:"",t=e.submit===!0,r=l.getCellCount();if(t)l.broadcastInput(n);else for(let o=0;o<r;o++)l.sendToCell(o,n);s.writeHead(200),s.end(JSON.stringify({success:!0,cellCount:r}))}_readBody(e){return new Promise(s=>{let l="";e.on("data",n=>{l+=n}),e.on("end",()=>{try{s(JSON.parse(l))}catch{s({})}})})}};var D,I;function ue(c){let e=g.workspace.workspaceFolders?.[0]?.uri.fsPath;if(e){let r=c.globalState.get("projectPresets",{})[e];if(r){let i=c.globalState.get("presets",[]).find(d=>d.name===r);if(i){let d=g.workspace.getConfiguration("terminalGrid");if(d.update("defaultRows",i.rows,g.ConfigurationTarget.Global),d.update("defaultCols",i.cols,g.ConfigurationTarget.Global),d.update("zoomPercent",i.zoomPercent,g.ConfigurationTarget.Global),d.update("fontFamily",i.fontFamily,g.ConfigurationTarget.Global),d.update("backgroundColor",i.bgColor,g.ConfigurationTarget.Global),d.update("foregroundColor",i.fgColor,g.ConfigurationTarget.Global),d.update("colorTheme",i.colorTheme||"",g.ConfigurationTarget.Global),d.update("shellType",i.shellType||"",g.ConfigurationTarget.Global),c.globalState.update("startupCommands",i.startupCommands||[]),c.globalState.update("cellLabels",i.cellLabels||[]),c.globalState.update("defaultCommand",i.defaultCommand||""),i.defaultSteps?c.globalState.update("defaultSteps",i.defaultSteps):i.defaultCommand?c.globalState.update("defaultSteps",[{type:"command",input:i.defaultCommand}]):c.globalState.update("defaultSteps",[]),i.cellStepsOverrides){let p=c.globalState.get("cellOverrides",{});for(let[f,h]of Object.entries(i.cellStepsOverrides))p[Number(f)]||(p[Number(f)]={}),Array.isArray(h.startupSteps)&&(p[Number(f)].startupSteps=h.startupSteps);c.globalState.update("cellOverrides",p)}}}}let s=new B(c),l=g.workspace.getConfiguration("terminalGrid").get("apiPort",7890);l>0&&(D=new G(l),D.start().then(t=>{I=g.window.createStatusBarItem(g.StatusBarAlignment.Right,50),I.text=`$(broadcast) TG :${t}`,I.tooltip=g.l10n.t("Terminal Grid API active on port {0}",t),I.command="terminalGrid.copyMcpConfig",I.show(),c.subscriptions.push(I),s.setMcpPort(t)}).catch(t=>{g.window.showWarningMessage(g.l10n.t("Terminal Grid API bridge failed to start: {0}",t.message))}));let n=g.lm;if(typeof n?.registerMcpServerDefinitionProvider=="function"){let t=new g.EventEmitter,r=l,o=n.registerMcpServerDefinitionProvider;c.subscriptions.push(o("terminalGrid",{onDidChangeMcpServerDefinitions:t.event,provideMcpServerDefinitions:async()=>{if(r<=0)return[];let i=g.McpStdioServerDefinition;return i?[new i("Terminal Grid","node",[A.join(c.extensionPath,"mcp-server.js")],{TERMINAL_GRID_PORT:String(r)},c.extension.packageJSON.version)]:[]}}),t),c.subscriptions.push(g.workspace.onDidChangeConfiguration(i=>{i.affectsConfiguration("terminalGrid.apiPort")&&(r=g.workspace.getConfiguration("terminalGrid").get("apiPort",7890),t.fire())}))}c.subscriptions.push(g.window.registerWebviewViewProvider(B.viewType,s)),c.subscriptions.push(g.commands.registerCommand("terminalGrid._refreshSidebar",()=>{s.sendConfig()})),c.subscriptions.push(g.window.registerWebviewPanelSerializer("terminalGrid",{async deserializeWebviewPanel(t,r){let o=c.globalState.get("lastGrid");o?v.revive(t,c,o.rows,o.cols):t.dispose()}})),c.subscriptions.push(g.commands.registerCommand("terminalGrid.openGrid",()=>{let t=g.workspace.getConfiguration("terminalGrid"),r=t.get("defaultRows",2),o=t.get("defaultCols",3);v.createOrShow(c,r,o)}),g.commands.registerCommand("terminalGrid.openCustomGrid",(t,r)=>{v.createOrShow(c,t,r)}),g.commands.registerCommand("terminalGrid.open2x2",()=>v.createOrShow(c,2,2)),g.commands.registerCommand("terminalGrid.open2x3",()=>v.createOrShow(c,2,3)),g.commands.registerCommand("terminalGrid.open3x3",()=>v.createOrShow(c,3,3)),g.commands.registerCommand("terminalGrid.sendToCell",(t,r)=>v.currentPanel?.sendToCell(t,r)??!1),g.commands.registerCommand("terminalGrid.readCell",(t,r)=>v.currentPanel?.readCell(t,r)??null),g.commands.registerCommand("terminalGrid.getGridInfo",()=>{let t=v.currentPanel;return t?{rows:t.getRows(),cols:t.getCols(),cellCount:t.getCellCount(),cellLabels:t.getCellLabels()}:null}),g.commands.registerCommand("terminalGrid.testAPI",async()=>{let t=g.window.createOutputChannel("Terminal Grid Tests");t.show(),t.appendLine(`=== Terminal Grid API Tests ===
-`);let r=0,o=0;function i(b,C,_){let E=C?"PASS":"FAIL";C?r++:o++,t.appendLine(`[${E}] ${b}${_?" \u2014 "+_:""}`)}let d=await g.commands.executeCommand("terminalGrid.getGridInfo");if(!d){t.appendLine("[FAIL] getGridInfo returned null. Open a grid first.");return}i("getGridInfo returns object",!!d,JSON.stringify(d)),i("rows is number",typeof d.rows=="number",`rows=${d.rows}`),i("cols is number",typeof d.cols=="number",`cols=${d.cols}`),i("cellCount = rows*cols",d.cellCount===d.rows*d.cols,`${d.cellCount}`),i("cellLabels is array",Array.isArray(d.cellLabels),`length=${d.cellLabels.length}`),i("cellLabels.length = cellCount",d.cellLabels.length===d.cellCount);let p=await g.commands.executeCommand("terminalGrid.sendToCell",0,"echo __API_TEST__\r");i("sendToCell(0) returns true",p===!0);let f=await g.commands.executeCommand("terminalGrid.sendToCell",999,"x\r");i("sendToCell(999) returns false",f===!1,`got ${f}`);let h=await g.commands.executeCommand("terminalGrid.sendToCell",0,"TYPED_ONLY");i("sendToCell without \\r returns true",h===!0),await new Promise(b=>setTimeout(b,2e3)),await g.commands.executeCommand("terminalGrid.sendToCell",0,"");let k=await g.commands.executeCommand("terminalGrid.readCell",0);i("readCell(0) returns string",typeof k=="string",`length=${k?.length??0}`),i("readCell(0) contains test marker",!!k&&k.includes("__API_TEST__"));let m=await g.commands.executeCommand("terminalGrid.readCell",0,3);i("readCell(0, 3) returns string",typeof m=="string");let x=await g.commands.executeCommand("terminalGrid.readCell",0,0);i("readCell(0, 0) returns empty",x==="",`got "${x}"`);let y=await g.commands.executeCommand("terminalGrid.readCell",999);if(i("readCell(999) returns null",y===null,`got ${y}`),d.cellCount>1){let b=await g.commands.executeCommand("terminalGrid.sendToCell",1,"echo CELL1_OK\r");i("sendToCell(1) returns true",b===!0),await new Promise(_=>setTimeout(_,1500));let C=await g.commands.executeCommand("terminalGrid.readCell",1);i("readCell(1) contains CELL1_OK",!!C&&C.includes("CELL1_OK"))}t.appendLine(`
-=== ${r} passed, ${o} failed ===`),o===0?g.window.showInformationMessage(g.l10n.t("Terminal Grid API: All {0} tests passed!",r)):g.window.showWarningMessage(g.l10n.t("Terminal Grid API: {0} test(s) failed. See output.",o))}),g.commands.registerCommand("terminalGrid.copyMcpConfig",()=>{let t=D?.getPort()??7890,o={mcpServers:{"terminal-grid":{command:"node",args:[A.join(c.extensionPath,"mcp-server.js")],env:{TERMINAL_GRID_PORT:String(t)}}}};g.env.clipboard.writeText(JSON.stringify(o,null,2)),g.window.showInformationMessage(g.l10n.t("Terminal Grid MCP config copied to clipboard (port {0})",t))}))}function me(){D?.stop(),D=void 0,v.currentPanel?.dispose()}0&&(module.exports={activate,deactivate});
+</html>`}};function Pe(){let o="",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";for(let n=0;n<32;n++)o+=e.charAt(Math.floor(Math.random()*e.length));return o}var ue=T(require("http"));var K=class{constructor(e){this._server=null;this._port=e}start(e=10){return new Promise((n,a)=>{this._server=this._createServer();let s=t=>{this._server.removeAllListeners("error"),this._server.on("error",r=>{r.code==="EADDRINUSE"&&t<e?(this._port++,s(t+1)):a(r)}),this._server.listen(this._port,"127.0.0.1",()=>{let r=this._server.address();this._port=r.port,n(this._port)})};s(0)})}_createServer(){return ue.createServer((e,n)=>{if(n.setHeader("Content-Type","application/json"),e.method==="OPTIONS"){n.writeHead(204),n.end();return}let a=new URL(e.url||"/",`http://127.0.0.1:${this._port}`);e.method==="GET"&&a.pathname==="/api/health"?(n.writeHead(200),n.end(JSON.stringify({status:"ok"}))):e.method==="GET"&&a.pathname==="/api/info"?this._handleInfo(n):e.method==="POST"&&a.pathname==="/api/send"?this._readBody(e).then(s=>this._handleSend(s,n)):e.method==="POST"&&a.pathname==="/api/read"?this._readBody(e).then(s=>this._handleRead(s,n)):e.method==="POST"&&a.pathname==="/api/broadcast"?this._readBody(e).then(s=>this._handleBroadcast(s,n)):(n.writeHead(404),n.end(JSON.stringify({error:"Not found"})))})}stop(){this._server?.close(),this._server=null}getPort(){return this._port}_handleInfo(e){let n=w.getActive(),a=w.entries().map(([s,t])=>({tabId:s,rows:t.getRows(),cols:t.getCols(),cellIds:t.getCellIds(),labels:t.getCellLabels()}));e.writeHead(200),e.end(JSON.stringify({grid:n?{rows:n.getRows(),cols:n.getCols(),cellCount:n.getCellCount(),cellLabels:n.getCellLabels()}:null,tabs:a,activeTabId:w.getActiveTabId()??null}))}_handleSend(e,n){let a=typeof e.cellId=="number"?e.cellId:-1,s=typeof e.text=="string"?e.text:"",t=e.submit===!0,r=L.resolve(a);if(!r){n.writeHead(200),n.end(JSON.stringify({success:!1,error:"Invalid cell id"}));return}let g=w.get(r.tabId);if(!g){n.writeHead(200),n.end(JSON.stringify({success:!1,error:"Tab no longer open"}));return}let l=t?g.sendInputToCell(r.localCellId,s):g.sendToCell(r.localCellId,s);n.writeHead(200),n.end(JSON.stringify({success:l}))}_handleRead(e,n){let a=typeof e.cellId=="number"?e.cellId:-1,s=typeof e.lines=="number"?e.lines:void 0,t=L.resolve(a);if(!t){n.writeHead(200),n.end(JSON.stringify({output:null,error:"Invalid cell id"}));return}let r=w.get(t.tabId);if(!r){n.writeHead(200),n.end(JSON.stringify({output:null,error:"Tab no longer open"}));return}let g=r.readCell(t.localCellId,s);n.writeHead(200),n.end(JSON.stringify({output:g}))}_handleBroadcast(e,n){let a=w.getActive();if(!a){n.writeHead(200),n.end(JSON.stringify({success:!1,error:"No grid open"}));return}let s=typeof e.text=="string"?e.text:"",t=e.submit===!0,r=a.getCellCount();if(t)a.broadcastInput(s);else for(let g=0;g<r;g++)a.sendToCell(g,s);n.writeHead(200),n.end(JSON.stringify({success:!0,cellCount:r}))}_readBody(e){return new Promise(n=>{let a="";e.on("data",s=>{a+=s}),e.on("end",()=>{try{n(JSON.parse(a))}catch{n({})}})})}};var H,j;async function Oe(o){if(p.init(o),await p.migrateOnce(),z.autoCleanupStaleRegistration(),o.globalState.get("lastTabs",[]).length===0){let d=o.globalState.get("lastGrid");if(d&&d.rows>0&&d.cols>0){let f=d.rows*d.cols,v=[];for(let S=0;S<f;S++)v.push(S);await o.globalState.update("lastTabs",[{tabId:0,rows:d.rows,cols:d.cols,cellIds:v}]),o.globalState.get("nextTabId",0)<1&&await o.globalState.update("nextTabId",1),o.globalState.get("nextGlobalCellId",0)<f&&await o.globalState.update("nextGlobalCellId",f)}}try{let d=U.join(me.homedir(),".terminal-grid"),f=U.join(d,"reload-signal");P.mkdirSync(d,{recursive:!0});let v=P.existsSync(f)?P.statSync(f).mtimeMs:0,c=P.watch(d,(h,S)=>{if(S==="reload-signal")try{let C=P.statSync(f).mtimeMs;C>v&&(v=C,u.commands.executeCommand("workbench.action.reloadWindow"))}catch{}});o.subscriptions.push({dispose:()=>c.close()})}catch{}let n=u.workspace.workspaceFolders?.[0]?.uri.fsPath;if(n){let f=o.globalState.get("projectPresets",{})[n];if(f){let c=o.globalState.get("presets",[]).find(h=>h.name===f);if(c){let h=u.workspace.getConfiguration("terminalGrid");if(await h.update("defaultRows",c.rows,u.ConfigurationTarget.Global),await h.update("defaultCols",c.cols,u.ConfigurationTarget.Global),await h.update("zoomPercent",c.zoomPercent,u.ConfigurationTarget.Global),await h.update("fontFamily",c.fontFamily,u.ConfigurationTarget.Global),await h.update("backgroundColor",c.bgColor,u.ConfigurationTarget.Global),await h.update("foregroundColor",c.fgColor,u.ConfigurationTarget.Global),await h.update("colorTheme",c.colorTheme||"",u.ConfigurationTarget.Global),await h.update("shellType",c.shellType||"",u.ConfigurationTarget.Global),o.globalState.get("lastTabs",[]).length===0){let C=E.next(o);if(await p.setStartupCommands(C,c.startupCommands||[]),await p.setCellLabels(C,c.cellLabels||[]),await p.setDefaultCommand(C,c.defaultCommand||""),c.defaultSteps?await p.setDefaultSteps(C,c.defaultSteps):c.defaultCommand?await p.setDefaultSteps(C,[{type:"command",input:c.defaultCommand}]):await p.setDefaultSteps(C,[]),c.cellStepsOverrides){let I={};for(let[k,D]of Object.entries(c.cellStepsOverrides))I[Number(k)]={},Array.isArray(D.startupSteps)&&(I[Number(k)].startupSteps=D.startupSteps);await p.setCellOverrides(C,I)}await p.setMergedRegions(C,c.mergedRegions||[]),await o.globalState.update("pendingFirstTabId",C)}}}}let a=new z(o),s=u.workspace.getConfiguration("terminalGrid").get("apiPort",7890);s>0&&(H=new K(s),H.start().then(d=>{j=u.window.createStatusBarItem(u.StatusBarAlignment.Right,50),j.text=`$(broadcast) TG :${d}`,j.tooltip=u.l10n.t("Terminal Grid API active on port {0}",d),j.command="terminalGrid.copyMcpConfig",j.show(),o.subscriptions.push(j),a.setMcpPort(d)}).catch(d=>{u.window.showWarningMessage(u.l10n.t("Terminal Grid API bridge failed to start: {0}",d.message))}));let t=u.lm;if(typeof t?.registerMcpServerDefinitionProvider=="function"){let d=new u.EventEmitter,f=s,v=t.registerMcpServerDefinitionProvider;o.subscriptions.push(v("terminalGrid",{onDidChangeMcpServerDefinitions:d.event,provideMcpServerDefinitions:async()=>{if(f<=0)return[];let c=u.McpStdioServerDefinition;return c?[new c("Terminal Grid","node",[U.join(o.extensionPath,"mcp-server.js")],{TERMINAL_GRID_PORT:String(f)},o.extension.packageJSON.version)]:[]}}),d),o.subscriptions.push(u.workspace.onDidChangeConfiguration(c=>{c.affectsConfiguration("terminalGrid.apiPort")&&(f=u.workspace.getConfiguration("terminalGrid").get("apiPort",7890),d.fire())}))}o.subscriptions.push(u.window.registerWebviewViewProvider(z.viewType,a)),o.subscriptions.push(u.commands.registerCommand("terminalGrid._refreshSidebar",()=>{a.sendConfig()}));let r=o.globalState.get("lastTabs",[]),g=0,l=!1,b=!1,m=async()=>{if(l)return;l=!0,w.size()>0&&x.persistTabs(o);let d=new Set(w.entries().map(([v])=>v)),f=r.filter(v=>!d.has(v.tabId));if(f.length>0){let v=[];for(let c of u.window.tabGroups.all)for(let h of c.tabs)if(h.input instanceof u.TabInputWebview){let S=h.input.viewType||"";(S==="terminalGrid"||S.endsWith("-terminalGrid"))&&!h.isActive&&v.push(h)}if(v.length>0)try{await u.window.tabGroups.close(v)}catch{}for(let c of f)x.createOrShow(o,c.rows,c.cols,{forceNewTab:!0,tabIdOverride:c.tabId,cellIdsOverride:c.cellIds})}else w.size()===0&&o.globalState.get("lastTabs",[]).length>0&&(o.globalState.update("lastTabs",void 0),o.globalState.update("lastGrid",void 0))};o.subscriptions.push(u.window.registerWebviewPanelSerializer("terminalGrid",{async deserializeWebviewPanel(d,f){if(g<r.length){let v=r[g++];x.revive(d,o,v.rows,v.cols,v.tabId,v.cellIds)}else d.dispose();b||(b=!0,setTimeout(()=>{m()},100))}})),setTimeout(()=>{m()},1500),o.subscriptions.push(u.commands.registerCommand("terminalGrid.openGrid",()=>{let d=u.workspace.getConfiguration("terminalGrid"),f=d.get("defaultRows",2),v=d.get("defaultCols",3);x.createOrShow(o,f,v)}),u.commands.registerCommand("terminalGrid.openCustomGrid",(d,f)=>{x.createOrShow(o,d,f)}),u.commands.registerCommand("terminalGrid.open2x2",()=>x.createOrShow(o,2,2)),u.commands.registerCommand("terminalGrid.open2x3",()=>x.createOrShow(o,2,3)),u.commands.registerCommand("terminalGrid.open3x3",()=>x.createOrShow(o,3,3)),u.commands.registerCommand("terminalGrid.newTab",()=>{let d=w.getActive(),f=u.workspace.getConfiguration("terminalGrid"),v=d?.getRows()??f.get("defaultRows",2),c=d?.getCols()??f.get("defaultCols",3);x.createOrShow(o,v,c,{forceNewTab:!0})}),u.commands.registerCommand("terminalGrid.duplicateTab",async()=>{let d=w.getActive();if(!d){u.window.showWarningMessage(u.l10n.t("No active tab to duplicate."));return}let f=d.getRows(),v=d.getCols(),c=d.getTabId(),h=E.next(o);await p.cloneTab(c,h),x.createOrShow(o,f,v,{forceNewTab:!0,tabIdOverride:h}),u.window.showInformationMessage(u.l10n.t("Tab duplicated. Terminal history is not copied; cells will start with the configured startup commands."))}),u.commands.registerCommand("terminalGrid.closeTab",()=>{if(w.size()<=1){u.window.showWarningMessage(u.l10n.t("Cannot close the last remaining tab."));return}let d=w.getActive();d&&d.dispose()}),u.commands.registerCommand("terminalGrid.resetCellIds",async()=>{if(w.size()>0){u.window.showWarningMessage(u.l10n.t("Close all Terminal Grid tabs before resetting cell IDs."));return}await L.reset(o),await E.reset(o),u.window.showInformationMessage(u.l10n.t("Cell IDs and tab counter reset."))}),u.commands.registerCommand("terminalGrid.resetAllTabs",async()=>{await u.window.showWarningMessage(u.l10n.t("Close all Terminal Grid tabs and wipe persisted tab state? This cannot be undone."),{modal:!0},u.l10n.t("Reset"))===u.l10n.t("Reset")&&(w.disposeAll(),await L.reset(o),await E.reset(o),await o.globalState.update("lastTabs",void 0),await o.globalState.update("lastGrid",void 0),await o.globalState.update("pendingFirstTabId",void 0),u.window.showInformationMessage(u.l10n.t("All Terminal Grid tabs and persisted state reset.")))}),u.commands.registerCommand("terminalGrid.sendToCell",(d,f)=>{let v=L.resolve(d);return v?w.get(v.tabId)?.sendToCell(v.localCellId,f)??!1:!1}),u.commands.registerCommand("terminalGrid.readCell",(d,f)=>{let v=L.resolve(d);return v?w.get(v.tabId)?.readCell(v.localCellId,f)??null:null}),u.commands.registerCommand("terminalGrid.getGridInfo",()=>{let d=w.getActive();if(!d)return null;let f=w.entries().map(([v,c])=>({tabId:v,rows:c.getRows(),cols:c.getCols(),cellIds:c.getCellIds(),labels:c.getCellLabels()}));return{rows:d.getRows(),cols:d.getCols(),cellCount:d.getCellCount(),cellLabels:d.getCellLabels(),tabs:f,activeTabId:w.getActiveTabId()??null}}),u.commands.registerCommand("terminalGrid.testAPI",async()=>{let d=u.window.createOutputChannel("Terminal Grid Tests");d.show(),d.appendLine(`=== Terminal Grid API Tests ===
+`);let f=0,v=0;function c(M,B,N){let F=B?"PASS":"FAIL";B?f++:v++,d.appendLine(`[${F}] ${M}${N?" \u2014 "+N:""}`)}let h=await u.commands.executeCommand("terminalGrid.getGridInfo");if(!h){d.appendLine("[FAIL] getGridInfo returned null. Open a grid first.");return}c("getGridInfo returns object",!!h,JSON.stringify(h)),c("rows is number",typeof h.rows=="number",`rows=${h.rows}`),c("cols is number",typeof h.cols=="number",`cols=${h.cols}`),c("cellCount = rows*cols",h.cellCount===h.rows*h.cols,`${h.cellCount}`),c("cellLabels is array",Array.isArray(h.cellLabels),`length=${h.cellLabels.length}`),c("cellLabels.length = cellCount",h.cellLabels.length===h.cellCount);let S=await u.commands.executeCommand("terminalGrid.sendToCell",0,"echo __API_TEST__\r");c("sendToCell(0) returns true",S===!0);let C=await u.commands.executeCommand("terminalGrid.sendToCell",999,"x\r");c("sendToCell(999) returns false",C===!1,`got ${C}`);let I=await u.commands.executeCommand("terminalGrid.sendToCell",0,"TYPED_ONLY");c("sendToCell without \\r returns true",I===!0),await new Promise(M=>setTimeout(M,2e3)),await u.commands.executeCommand("terminalGrid.sendToCell",0,"");let k=await u.commands.executeCommand("terminalGrid.readCell",0);c("readCell(0) returns string",typeof k=="string",`length=${k?.length??0}`),c("readCell(0) contains test marker",!!k&&k.includes("__API_TEST__"));let D=await u.commands.executeCommand("terminalGrid.readCell",0,3);c("readCell(0, 3) returns string",typeof D=="string");let ee=await u.commands.executeCommand("terminalGrid.readCell",0,0);c("readCell(0, 0) returns empty",ee==="",`got "${ee}"`);let te=await u.commands.executeCommand("terminalGrid.readCell",999);if(c("readCell(999) returns null",te===null,`got ${te}`),h.cellCount>1){let M=await u.commands.executeCommand("terminalGrid.sendToCell",1,"echo CELL1_OK\r");c("sendToCell(1) returns true",M===!0),await new Promise(N=>setTimeout(N,1500));let B=await u.commands.executeCommand("terminalGrid.readCell",1);c("readCell(1) contains CELL1_OK",!!B&&B.includes("CELL1_OK"))}if(h.tabs&&h.tabs.length>1){d.appendLine(`
+--- Multi-tab tests ---`);let M=h.tabs.flatMap(V=>V.cellIds),B=new Set(M);c("global cell ids unique across all tabs",B.size===M.length,`${M.length} ids`),c("activeTabId is a number",typeof h.activeTabId=="number");let N=h.tabs[1],F=N.cellIds[0],be=await u.commands.executeCommand("terminalGrid.sendToCell",F,"echo __MULTITAB_OK__\r");c(`sendToCell global=${F} (tab ${N.tabId+1} cell 1) returns true`,be===!0),await new Promise(V=>setTimeout(V,1500));let se=await u.commands.executeCommand("terminalGrid.readCell",F);c(`readCell global=${F} contains __MULTITAB_OK__`,!!se&&se.includes("__MULTITAB_OK__"));let ne=Math.max(...M)+1e4,fe=await u.commands.executeCommand("terminalGrid.sendToCell",ne,"x");c(`sendToCell with bogus global id=${ne} returns false`,fe===!1)}else h.tabs&&d.appendLine(`
+(Multi-tab tests skipped: only ${h.tabs.length} tab open. Open a second tab via the sidebar to enable.)`);d.appendLine(`
+=== ${f} passed, ${v} failed ===`),v===0?u.window.showInformationMessage(u.l10n.t("Terminal Grid API: All {0} tests passed!",f)):u.window.showWarningMessage(u.l10n.t("Terminal Grid API: {0} test(s) failed. See output.",v))}),u.commands.registerCommand("terminalGrid.copyMcpConfig",()=>{let d=H?.getPort()??7890,v={mcpServers:{"terminal-grid":{command:"node",args:[U.join(o.extensionPath,"mcp-server.js")],env:{TERMINAL_GRID_PORT:String(d)}}}};u.env.clipboard.writeText(JSON.stringify(v,null,2)),u.window.showInformationMessage(u.l10n.t("Terminal Grid MCP config copied to clipboard (port {0})",d))}))}function Be(){H?.stop(),H=void 0,w.disposeAll()}0&&(module.exports={activate,deactivate});

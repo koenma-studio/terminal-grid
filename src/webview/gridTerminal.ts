@@ -172,7 +172,6 @@ interface Cell {
   zoom: number;
   zoomLabel: HTMLSpanElement;
   labelEl: HTMLSpanElement;
-  scrollDownBtn: HTMLButtonElement;
   userScrolledUp: boolean;
   writing: boolean;
   savedScrollTop: number;
@@ -243,22 +242,8 @@ for (let i = 0; i < total; i++) {
   terminal.textarea?.addEventListener("focus", () => cellDiv.classList.add("focused"));
   terminal.textarea?.addEventListener("blur", () => cellDiv.classList.remove("focused"));
 
-  // Scroll-to-bottom button
-  const scrollDownBtn = document.createElement("button");
-  scrollDownBtn.className = "scroll-down-btn";
-  scrollDownBtn.textContent = "\u2193";
-  scrollDownBtn.title = "Scroll to bottom";
-  scrollDownBtn.style.display = "none";
-  cellDiv.appendChild(scrollDownBtn);
-
-  const cell: Cell = { terminal, fitAddon, el: cellDiv, zoom: 100, zoomLabel, labelEl: label, scrollDownBtn, userScrolledUp: false, writing: false, savedScrollTop: 0 };
+  const cell: Cell = { terminal, fitAddon, el: cellDiv, zoom: 100, zoomLabel, labelEl: label, userScrolledUp: false, writing: false, savedScrollTop: 0 };
   cells.push(cell);
-
-  scrollDownBtn.addEventListener("click", () => {
-    terminal.scrollToBottom();
-    cell.userScrolledUp = false;
-    scrollDownBtn.style.display = "none";
-  });
 
   // Track user scroll state via viewport DOM scroll event
   const viewport = termContainer.querySelector(".xterm-viewport") as HTMLElement | null;
@@ -268,7 +253,6 @@ for (let i = 0; i < total; i++) {
       const atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 1;
       cell.userScrolledUp = !atBottom;
       cell.savedScrollTop = viewport.scrollTop;
-      scrollDownBtn.style.display = atBottom ? "none" : "block";
     });
   }
 

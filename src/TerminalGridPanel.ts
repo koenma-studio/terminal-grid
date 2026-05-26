@@ -3,6 +3,9 @@ import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import { BUILTIN_THEMES, resolveThemeColors } from "./themes";
+import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
+import { tabState } from "./TabStateStore";
+import { cellIdMapper } from "./CellIdMapper";
 
 interface PtyLike {
   onData(cb: (data: string) => void): void;
@@ -16,7 +19,7 @@ interface TerminalInstance {
   pty: PtyLike;
 }
 
-type StartupStep =
+export type StartupStep =
   | { type: "command"; input: string }
   | { type: "timeout"; ms: number };
 
@@ -99,11 +102,19 @@ const FONT_FORMATS: Record<string, string> = {
 };
 
 export class TerminalGridPanel {
-  public static currentPanel: TerminalGridPanel | undefined;
+  /** Active-tab accessor — returns the most recently focused panel. */
+  public static get currentPanel(): TerminalGridPanel | undefined {
+    return panelRegistry.getActive();
+  }
   private static _nodePty: typeof import("node-pty") | null | undefined;
   private static _log: vscode.OutputChannel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
+  private readonly _tabId: number;
+  /** Global cell ids owned by this tab (sparse). Length = rows * cols. */
+  private _cellIds: number[] = [];
+  /** Listener that re-renders the editor-tab title when the tab order changes. */
+  private _registryListener: vscode.Disposable | undefined;
   private _terminals: TerminalInstance[] = [];
   private _outputBuffers: string[] = [];
   private _csiUMode: boolean[] = [];            // Kitty keyboard protocol active per cell
@@ -231,14 +242,42 @@ export class TerminalGridPanel {
   public static createOrShow(
     context: vscode.ExtensionContext,
     rows: number,
-    cols: number
-  ): void {
-    if (TerminalGridPanel.currentPanel) {
-      TerminalGridPanel.currentPanel.dispose();
+    cols: number,
+    options?: { forceNewTab?: boolean; tabIdOverride?: number; cellIdsOverride?: number[]; positionOverride?: number }
+  ): number {
+    // Replace-active path: reuse the active tab's id (and cellIds if size unchanged) so
+    // customName/cellOverrides/labels are preserved and the sidebar entry keeps its slot.
+    const active = !options?.forceNewTab ? panelRegistry.getActive() : null;
+
+    let tabId: number;
+    let cellIds: number[];
+    let oldTabId: number | undefined;
+
+    if (active) {
+      oldTabId = active.getTabId();
+      tabId = options?.tabIdOverride ?? oldTabId;
+      const sameSize = active.getRows() * active.getCols() === rows * cols;
+      cellIds = options?.cellIdsOverride
+        ?? (sameSize ? active.getCellIds() : cellIdMapper.allocate(context, rows * cols));
+    } else {
+      // No active tab — explicit override > pending preset tabId > next from allocator
+      if (options?.tabIdOverride !== undefined) {
+        tabId = options.tabIdOverride;
+      } else {
+        const pending = context.globalState.get<number | undefined>("pendingFirstTabId");
+        if (pending !== undefined && pending !== null) {
+          tabId = pending;
+          void context.globalState.update("pendingFirstTabId", undefined);
+        } else {
+          tabId = TabIdAllocator.next(context);
+        }
+      }
+      cellIds = options?.cellIdsOverride ?? cellIdMapper.allocate(context, rows * cols);
     }
 
     const panel = vscode.window.createWebviewPanel(
       "terminalGrid",
+      // Placeholder — title is set by refreshTitle() after register/replace fires onDidChange.
       vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols),
       vscode.ViewColumn.One,
       {
@@ -250,33 +289,80 @@ export class TerminalGridPanel {
       }
     );
 
-    TerminalGridPanel.currentPanel = new TerminalGridPanel(
-      panel,
-      context,
-      rows,
-      cols
-    );
-    context.globalState.update("lastGrid", { rows, cols });
-    vscode.commands.executeCommand("terminalGrid._refreshSidebar");
+    const instance = new TerminalGridPanel(panel, context, rows, cols, tabId, cellIds);
+
+    if (active && oldTabId !== undefined) {
+      // Atomic swap: single onDidChange fire, no flicker
+      panelRegistry.replace(oldTabId, tabId, instance);
+      active.dispose();  // panel-ref check in unregister keeps the new entry intact
+    } else {
+      panelRegistry.register(tabId, instance, options?.positionOverride);
+    }
+    TerminalGridPanel._persistTabs(context);
+    return tabId;
   }
 
   public static revive(
     panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
     rows: number,
-    cols: number
+    cols: number,
+    tabIdOverride?: number,
+    cellIdsOverride?: number[]
   ): void {
-    if (TerminalGridPanel.currentPanel) {
-      TerminalGridPanel.currentPanel.dispose();
+    let replaceIdx: number | undefined;
+    if (tabIdOverride === undefined) {
+      const active = panelRegistry.getActive();
+      if (active) {
+        const activeTid = active.getTabId();
+        const idx = panelRegistry.entries().findIndex(([tid]) => tid === activeTid);
+        if (idx >= 0) replaceIdx = idx;
+        active.dispose();
+      }
     }
-    TerminalGridPanel.currentPanel = new TerminalGridPanel(
-      panel,
-      context,
-      rows,
-      cols
-    );
-    context.globalState.update("lastGrid", { rows, cols });
+    const tabId = tabIdOverride ?? TabIdAllocator.next(context);
+    const cellIds = cellIdsOverride ?? cellIdMapper.allocate(context, rows * cols);
+    const instance = new TerminalGridPanel(panel, context, rows, cols, tabId, cellIds);
+    panelRegistry.register(tabId, instance, replaceIdx);
+    TerminalGridPanel._persistTabs(context);
     vscode.commands.executeCommand("terminalGrid._refreshSidebar");
+  }
+
+  /** Persist the current panel snapshot to lastTabs for multi-tab restore on VS Code restart.
+   *  Public so extension.ts can force a re-sync after deserialize settles. */
+  public static persistTabs(context: vscode.ExtensionContext): void {
+    TerminalGridPanel._persistTabs(context);
+  }
+
+  private static _persistTabs(context: vscode.ExtensionContext): void {
+    const snapshot = panelRegistry.entries().map(([tabId, p]) => ({
+      tabId,
+      rows: p.getRows(),
+      cols: p.getCols(),
+      cellIds: p.getCellIds(),
+    }));
+    void context.globalState.update("lastTabs", snapshot);
+    // Backward compat: keep lastGrid in sync with the most recent panel (used as fallback by old deserialize path).
+    if (snapshot.length > 0) {
+      const last = snapshot[snapshot.length - 1];
+      void context.globalState.update("lastGrid", { rows: last.rows, cols: last.cols });
+    }
+  }
+
+  /** Format webview panel title: `workspace — Terminal Grid 2×3 · Tab 2` (or user-assigned name).
+   *  displayIdx is the 1-based position in panelRegistry.entries() — matches the sidebar Tabs card.
+   *  This is NOT the sparse internal tabId (which is what LLMs see via getGridInfo).
+   *  If customName is non-empty, it replaces the "Tab N" suffix.
+   */
+  private static _formatTitle(rows: number, cols: number, displayIdx: number, customName?: string): string {
+    const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name;
+    const base = vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols);
+    const tabSuffix = (customName && customName.length > 0)
+      ? customName
+      : vscode.l10n.t("Tab {0}", displayIdx + 1);
+    return workspaceName
+      ? `${workspaceName} — ${base} · ${tabSuffix}`
+      : `${base} · ${tabSuffix}`;
   }
 
   /** Get the correct Enter sequence for a terminal cell.
@@ -380,7 +466,7 @@ export class TerminalGridPanel {
 
   /** Get cell labels */
   public getCellLabels(): string[] {
-    const labels = this._context.globalState.get<string[]>("cellLabels", []);
+    const labels = tabState.getCellLabels(this._tabId);
     const total = this._rows * this._cols;
     return Array.from({ length: total }, (_, i) => labels[i] || String(i + 1));
   }
@@ -397,7 +483,7 @@ export class TerminalGridPanel {
 
   /** Send current cell labels to webview */
   public sendLabels(): void {
-    const labels = this._context.globalState.get<string[]>("cellLabels", []);
+    const labels = tabState.getCellLabels(this._tabId);
     this._panel.webview.postMessage({ type: "setLabels", labels });
   }
 
@@ -421,21 +507,27 @@ export class TerminalGridPanel {
     panel: vscode.WebviewPanel,
     context: vscode.ExtensionContext,
     rows: number,
-    cols: number
+    cols: number,
+    tabId: number,
+    cellIds: number[]
   ) {
     this._panel = panel;
     this._context = context;
     this._rows = rows;
     this._cols = cols;
+    this._tabId = tabId;
+    this._cellIds = cellIds;
 
-    // Set panel title with workspace name for taskbar distinction
-    const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name;
-    this._panel.title = workspaceName
-      ? `${workspaceName} — ${vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols)}`
-      : vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols);
+    // Title placeholder — the post-register onDidChange fire (and any later tab churn)
+    // routes through refreshTitle() so the editor tab shows the 1-based display index.
+    this._panel.title = vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols);
+    this._registryListener = panelRegistry.onDidChange(() => {
+      if (this._disposed) return;
+      this.refreshTitle();
+    });
 
     // Compute hidden cells from merge regions
-    const mergedRegions = context.globalState.get<{startRow: number; startCol: number; rowSpan: number; colSpan: number}[]>("mergedRegions", [])
+    const mergedRegions = tabState.getMergedRegions(tabId)
       .filter(m => m.startRow + m.rowSpan <= rows && m.startCol + m.colSpan <= cols);
     this._hiddenCells = new Set<number>();
     for (const m of mergedRegions) {
@@ -475,7 +567,7 @@ export class TerminalGridPanel {
             this._context.globalState.get<CustomFont[]>("customFonts", [])
           );
           // Apply stored per-cell overrides
-          const cellOverrides = this._context.globalState.get<Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string}>>("cellOverrides", {});
+          const cellOverrides = tabState.getCellOverrides(this._tabId);
           for (const [id, ov] of Object.entries(cellOverrides)) {
             if (ov.bgColor || ov.fgColor || ov.fontFamily || ov.themeName) {
               const tc = ov.themeName ? resolveThemeColors(ov.themeName) : null;
@@ -539,7 +631,7 @@ export class TerminalGridPanel {
           this._restartTerminal(msg.id);
           break;
         case "renameCell": {
-          const labels = this._context.globalState.get<string[]>("cellLabels", []);
+          const labels = tabState.getCellLabels(this._tabId);
           const current = labels[msg.id] || "";
           const newName = await vscode.window.showInputBox({
             prompt: vscode.l10n.t("Rename cell {0}", msg.id + 1),
@@ -548,7 +640,7 @@ export class TerminalGridPanel {
           });
           if (newName !== undefined) {
             labels[msg.id] = newName;
-            await this._context.globalState.update("cellLabels", labels);
+            await tabState.setCellLabels(this._tabId, labels);
             this.sendLabels();
             vscode.commands.executeCommand("terminalGrid._refreshSidebar");
           }
@@ -576,11 +668,46 @@ export class TerminalGridPanel {
 
     this._panel.onDidDispose(() => this.dispose());
 
+    this._panel.onDidChangeViewState((e) => {
+      if (this._disposed) return;
+      if (e.webviewPanel.active) {
+        panelRegistry.setActive(this._tabId);
+        vscode.commands.executeCommand("terminalGrid._refreshSidebar");
+      }
+    });
+
     this._panel.iconPath = vscode.Uri.joinPath(
       context.extensionUri,
       "images",
       "sidebar.svg"
     );
+  }
+
+  /** Public accessor for this panel's tab id. */
+  public getTabId(): number {
+    return this._tabId;
+  }
+
+  /** Public accessor for this panel's global cell ids (length = rows * cols). */
+  public getCellIds(): number[] {
+    return this._cellIds.slice();
+  }
+
+  /** Bring this panel into focus. */
+  public reveal(): void {
+    this._panel.reveal(this._panel.viewColumn ?? vscode.ViewColumn.One);
+  }
+
+  /** Refresh the editor-tab title to reflect the current 1-based display index (matches sidebar)
+   *  and any user-assigned custom name. Called by the registry listener AND directly after rename. */
+  public refreshTitle(): void {
+    if (this._disposed) return;
+    const entries = panelRegistry.entries();
+    const idx = entries.findIndex(([tid]) => tid === this._tabId);
+    // If not yet registered, assume we will be appended last
+    const displayIdx = idx >= 0 ? idx : entries.length;
+    const customName = tabState.getTabName(this._tabId);
+    this._panel.title = TerminalGridPanel._formatTitle(this._rows, this._cols, displayIdx, customName);
   }
 
   private _readFontBase64(fontPath: string): string | null {
@@ -641,7 +768,7 @@ export class TerminalGridPanel {
     }
 
     // Resolve per-cell startup commands (backward compat: old startupCommands list)
-    const rawCmds = this._context.globalState.get<unknown[]>("startupCommands", []);
+    const rawCmds = tabState.getStartupCommands(this._tabId);
     const expandedCmds: string[] = [];
     for (const item of rawCmds) {
       if (typeof item === "string") {
@@ -653,14 +780,14 @@ export class TerminalGridPanel {
         }
       }
     }
-    const defaultCommand = this._context.globalState.get<string>("defaultCommand", "");
-    const defaultSteps = this._context.globalState.get<StartupStep[]>("defaultSteps", []);
+    const defaultCommand = tabState.getDefaultCommand(this._tabId);
+    const defaultSteps = tabState.getDefaultSteps(this._tabId);
 
     const c = defaultCols || 80;
     const r = defaultRows || 24;
 
     const globalShell = vscode.workspace.getConfiguration("terminalGrid").get<string>("shellType", "");
-    const cellOverrides = this._context.globalState.get<Record<number, { shellType?: string; startupCommand?: string; startupSteps?: StartupStep[] }>>("cellOverrides", {});
+    const cellOverrides = tabState.getCellOverrides(this._tabId) as Record<number, { shellType?: string; startupCommand?: string; startupSteps?: StartupStep[] }>;
 
     // Spawn + wire handler immediately per cell (handler must be registered
     // before the first PTY output arrives, so spawn and onData stay together)
@@ -724,12 +851,12 @@ export class TerminalGridPanel {
       ".";
 
     const globalShell = vscode.workspace.getConfiguration("terminalGrid").get<string>("shellType", "");
-    const cellOverrides = this._context.globalState.get<Record<number, { shellType?: string; startupCommand?: string; startupSteps?: StartupStep[] }>>("cellOverrides", {});
+    const cellOverrides = tabState.getCellOverrides(this._tabId) as Record<number, { shellType?: string; startupCommand?: string; startupSteps?: StartupStep[] }>;
     const cellShell = cellOverrides[id]?.shellType || globalShell || "";
     const pty = this._spawnPty(TerminalGridPanel._getNodePty(), 80, 24, cwd, cellShell || undefined);
 
     // Re-apply startup steps for this cell (backward compat: old startupCommands list)
-    const rawCmds = this._context.globalState.get<unknown[]>("startupCommands", []);
+    const rawCmds = tabState.getStartupCommands(this._tabId);
     const expanded: string[] = [];
     for (const item of rawCmds) {
       if (typeof item === "string") {
@@ -741,8 +868,8 @@ export class TerminalGridPanel {
         }
       }
     }
-    const defaultCommand = this._context.globalState.get<string>("defaultCommand", "");
-    const defaultSteps = this._context.globalState.get<StartupStep[]>("defaultSteps", []);
+    const defaultCommand = tabState.getDefaultCommand(this._tabId);
+    const defaultSteps = tabState.getDefaultSteps(this._tabId);
     const steps = resolveStartupSteps(cellOverrides, expanded, defaultSteps, defaultCommand, id);
     this._cellShellType[id] = cellShell;
     this._insideLlm[id] = false;
@@ -886,10 +1013,12 @@ export class TerminalGridPanel {
   }
 
   public dispose(): void {
+    if (this._disposed) return;
     this._disposed = true;
-    TerminalGridPanel.currentPanel = undefined;
+    this._registryListener?.dispose();
+    // Pass `this` so a prior replace() that swapped this slot to a new panel isn't clobbered
+    panelRegistry.unregister(this._tabId, this);
     this._configListener?.dispose();
-    this._context.globalState.update("lastGrid", undefined);
 
     for (const t of this._terminals) {
       try {
@@ -904,6 +1033,19 @@ export class TerminalGridPanel {
     }
     this._pasteImages = [];
     this._panel.dispose();
+
+    if (panelRegistry.size() === 0) {
+      this._context.globalState.update("lastGrid", undefined);
+      this._context.globalState.update("lastTabs", undefined);
+    } else {
+      TerminalGridPanel._persistTabs(this._context);
+    }
+
+    const next = panelRegistry.getActive();
+    if (next) {
+      next.reveal();
+      vscode.commands.executeCommand("terminalGrid._refreshSidebar");
+    }
   }
 
   private _buildCustomFontCss(): string {
@@ -1034,28 +1176,6 @@ export class TerminalGridPanel {
     .term-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
       background: var(--vscode-scrollbarSlider-hoverBackground, rgba(255,255,255,0.2));
     }
-    .scroll-down-btn {
-      position: absolute;
-      bottom: 4px;
-      right: 10px;
-      z-index: 10;
-      width: 18px;
-      height: 18px;
-      border: none;
-      border-radius: 3px;
-      background: var(--vscode-button-background, #0e639c);
-      color: var(--vscode-button-foreground, #fff);
-      font-size: 11px;
-      line-height: 18px;
-      text-align: center;
-      cursor: pointer;
-      opacity: 0.85;
-      padding: 0;
-      transition: opacity 0.15s;
-    }
-    .scroll-down-btn:hover {
-      opacity: 1;
-    }
     .ctx-menu {
       position: fixed; display: none; z-index: 1000;
       background: var(--vscode-menu-background, #252526);
@@ -1095,7 +1215,7 @@ export class TerminalGridPanel {
     var __GRID_FG_COLOR = ${JSON.stringify(vscode.workspace.getConfiguration("terminalGrid").get<string>("foregroundColor", ""))};
     var __GRID_THEME = ${JSON.stringify(vscode.workspace.getConfiguration("terminalGrid").get<string>("colorTheme", ""))};
     var __GRID_THEME_COLORS = ${JSON.stringify(resolveThemeColors(vscode.workspace.getConfiguration("terminalGrid").get<string>("colorTheme", "")))};
-    var __GRID_MERGE_REGIONS = ${JSON.stringify(this._context.globalState.get<unknown[]>("mergedRegions", []).filter((m: any) => m.startRow + m.rowSpan <= this._rows && m.startCol + m.colSpan <= this._cols))};
+    var __GRID_MERGE_REGIONS = ${JSON.stringify(tabState.getMergedRegions(this._tabId).filter((m) => m.startRow + m.rowSpan <= this._rows && m.startCol + m.colSpan <= this._cols))};
   </script>
   <script nonce="${nonce}" src="${gridTerminalJs}"></script>
 </body>

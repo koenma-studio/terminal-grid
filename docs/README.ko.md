@@ -134,6 +134,12 @@ await vscode.commands.executeCommand('terminalGrid.sendToCell', 0, 'echo hello\r
 const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 10);
 ```
 
+## 보안
+
+MCP 브릿지는 `127.0.0.1`에서만 수신합니다 (기본 포트 `7890`, `terminalGrid.apiPort`로 변경 가능). 외부 네트워크 연결은 받지 않습니다.
+
+Claude Desktop에 MCP 서버를 등록하면 `terminal-grid` 항목이 번들된 `mcp-server.js`를 가리키도록 기록됩니다. 확장을 제거하기 전에 **Terminal Grid: Claude Desktop에서 MCP 등록 해제**를 실행하면 깔끔하게 정리됩니다. 등록된 스크립트 경로가 더 이상 존재하지 않는 경우 다음 확장 활성화 시 자동으로 정리됩니다.
+
 ## 요구사항
 
 - VS Code 1.80.0+

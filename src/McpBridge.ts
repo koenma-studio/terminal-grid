@@ -1,5 +1,6 @@
 import * as http from "http";
-import { TerminalGridPanel } from "./TerminalGridPanel";
+import { panelRegistry } from "./PanelRegistry";
+import { cellIdMapper } from "./CellIdMapper";
 
 export class McpBridge {
   private _server: http.Server | null = null;
@@ -74,21 +75,26 @@ export class McpBridge {
   }
 
   private _handleInfo(res: http.ServerResponse): void {
-    const panel = TerminalGridPanel.currentPanel;
-    if (!panel) {
-      res.writeHead(200);
-      res.end(JSON.stringify({ grid: null }));
-      return;
-    }
+    const active = panelRegistry.getActive();
+    const tabs = panelRegistry.entries().map(([tabId, p]) => ({
+      tabId,
+      rows: p.getRows(),
+      cols: p.getCols(),
+      cellIds: p.getCellIds(),
+      labels: p.getCellLabels(),
+    }));
     res.writeHead(200);
     res.end(
       JSON.stringify({
-        grid: {
-          rows: panel.getRows(),
-          cols: panel.getCols(),
-          cellCount: panel.getCellCount(),
-          cellLabels: panel.getCellLabels(),
-        },
+        // Backward-compat top-level fields reflect the active tab
+        grid: active ? {
+          rows: active.getRows(),
+          cols: active.getCols(),
+          cellCount: active.getCellCount(),
+          cellLabels: active.getCellLabels(),
+        } : null,
+        tabs,
+        activeTabId: panelRegistry.getActiveTabId() ?? null,
       })
     );
   }
@@ -97,18 +103,24 @@ export class McpBridge {
     body: Record<string, unknown>,
     res: http.ServerResponse
   ): void {
-    const panel = TerminalGridPanel.currentPanel;
-    if (!panel) {
-      res.writeHead(200);
-      res.end(JSON.stringify({ success: false, error: "No grid open" }));
-      return;
-    }
     const cellId = typeof body.cellId === "number" ? body.cellId : -1;
     const text = typeof body.text === "string" ? body.text : "";
     const submit = body.submit === true;
+    const resolved = cellIdMapper.resolve(cellId);
+    if (!resolved) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: false, error: "Invalid cell id" }));
+      return;
+    }
+    const panel = panelRegistry.get(resolved.tabId);
+    if (!panel) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: false, error: "Tab no longer open" }));
+      return;
+    }
     const result = submit
-      ? panel.sendInputToCell(cellId, text)
-      : panel.sendToCell(cellId, text);
+      ? panel.sendInputToCell(resolved.localCellId, text)
+      : panel.sendToCell(resolved.localCellId, text);
     res.writeHead(200);
     res.end(JSON.stringify({ success: result }));
   }
@@ -117,24 +129,31 @@ export class McpBridge {
     body: Record<string, unknown>,
     res: http.ServerResponse
   ): void {
-    const panel = TerminalGridPanel.currentPanel;
-    if (!panel) {
-      res.writeHead(200);
-      res.end(JSON.stringify({ output: null, error: "No grid open" }));
-      return;
-    }
     const cellId = typeof body.cellId === "number" ? body.cellId : -1;
     const lines = typeof body.lines === "number" ? body.lines : undefined;
-    const output = panel.readCell(cellId, lines);
+    const resolved = cellIdMapper.resolve(cellId);
+    if (!resolved) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ output: null, error: "Invalid cell id" }));
+      return;
+    }
+    const panel = panelRegistry.get(resolved.tabId);
+    if (!panel) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ output: null, error: "Tab no longer open" }));
+      return;
+    }
+    const output = panel.readCell(resolved.localCellId, lines);
     res.writeHead(200);
     res.end(JSON.stringify({ output }));
   }
 
+  /** Broadcast scope: active tab only (per design — explicit tabId=all would be a future extension). */
   private _handleBroadcast(
     body: Record<string, unknown>,
     res: http.ServerResponse
   ): void {
-    const panel = TerminalGridPanel.currentPanel;
+    const panel = panelRegistry.getActive();
     if (!panel) {
       res.writeHead(200);
       res.end(JSON.stringify({ success: false, error: "No grid open" }));

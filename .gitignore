@@ -2,6 +2,7 @@ out/
 node_modules/
 mcp-server.js
 *.vsix
+_linux-prebuild-output/
 .env*
 .DS_Store
 Thumbs.db

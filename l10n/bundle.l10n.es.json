@@ -85,5 +85,7 @@
   "Startup command…": "Comando de inicio…",
   "Set shell type and startup command per cell. Use All tab for global defaults, or individual tabs for per-cell overrides.": "Establece el tipo de shell y el comando de inicio por celda. Usa la pestaña Todos para valores globales o pestañas individuales para sobreescrituras por celda.",
   "Apply": "Aplicar",
-  "Copy (Plain)": "Copiar (Texto plano)"
+  "Copy (Plain)": "Copiar (Texto plano)",
+  "Manage multiple grid tabs — each tab keeps its own labels, cell settings, merges, and startup steps. Click a tab to focus it, right-click or double-click to rename. + opens a new empty tab, ⧉ duplicates the active tab, × closes a tab (last tab can't be closed).": "Administra múltiples pestañas de grid — cada una con sus propias etiquetas, configuración de celdas, fusiones y comandos de inicio. Clic para enfocar, clic derecho o doble clic para renombrar. + abre una pestaña vacía, ⧉ duplica la activa, × cierra una pestaña (la última no se puede cerrar).",
+  "Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.": "Registra el servidor MCP de Terminal Grid en Claude Desktop para que pueda controlar tu grid de terminales. Escribe la configuración del servidor en el archivo de configuración de Claude Desktop."
 }

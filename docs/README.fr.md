@@ -134,6 +134,12 @@ await vscode.commands.executeCommand('terminalGrid.sendToCell', 0, 'echo hello\r
 const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 10);
 ```
 
+## Sécurité
+
+Le pont MCP n écoute que sur `127.0.0.1` (port par défaut `7890`, configurable via `terminalGrid.apiPort`). Il n accepte pas les connexions distantes.
+
+Lorsque vous enregistrez le serveur MCP dans Claude Desktop, une entrée `terminal-grid` pointant vers le `mcp-server.js` fourni est écrite. Exécutez **Terminal Grid: Désinscrire MCP de Claude Desktop** avant la désinstallation pour nettoyer. Les enregistrements obsolètes (script référencé inexistant) sont supprimés automatiquement au prochain chargement de l extension.
+
 ## Prérequis
 
 - VS Code 1.80.0+

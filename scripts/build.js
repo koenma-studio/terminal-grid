@@ -64,12 +64,32 @@ execSync("npx vsce package", { stdio: "inherit" });
 const extDir = path.join(process.env.USERPROFILE || process.env.HOME, ".vscode", "extensions");
 const targetDir = path.join(extDir, `koenma.terminal-grid-${pkg.version}`);
 
-// Remove other-version folders
+// Remove other-version folders (tolerate locked files — VS Code may hold conpty.node)
+function rmTolerant(target) {
+  let leftover = 0;
+  function walk(p) {
+    let stat;
+    try { stat = fs.lstatSync(p); } catch { return; }
+    if (stat.isDirectory()) {
+      for (const name of fs.readdirSync(p)) walk(path.join(p, name));
+      try { fs.rmdirSync(p); } catch { leftover++; }
+    } else {
+      try { fs.unlinkSync(p); } catch { leftover++; }
+    }
+  }
+  walk(target);
+  return leftover;
+}
 if (fs.existsSync(extDir)) {
   for (const name of fs.readdirSync(extDir)) {
     if (name.startsWith("koenma.terminal-grid-") && name !== path.basename(targetDir)) {
-      fs.rmSync(path.join(extDir, name), { recursive: true, force: true });
-      console.log("Removed old: " + name);
+      const full = path.join(extDir, name);
+      const leftover = rmTolerant(full);
+      if (leftover === 0) {
+        console.log("Removed old: " + name);
+      } else {
+        console.log(`Partially removed (busy): ${name} — ${leftover} file(s) still locked, leave VS Code to clean up after reload.`);
+      }
     }
   }
 }
@@ -99,4 +119,11 @@ for (const entry of entries) {
     }
   }
 }
-console.log(`Deployed to ${targetDir}. Reload VS Code to activate.`);
+console.log(`Deployed to ${targetDir}.`);
+
+// Signal active VS Code windows to auto-reload (picked up by extension watcher)
+const os = require("os");
+const signalDir = path.join(os.homedir(), ".terminal-grid");
+fs.mkdirSync(signalDir, { recursive: true });
+fs.writeFileSync(path.join(signalDir, "reload-signal"), Date.now().toString());
+console.log("Reload signal sent (active VS Code windows will auto-reload).");

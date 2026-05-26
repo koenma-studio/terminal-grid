@@ -134,6 +134,12 @@ await vscode.commands.executeCommand('terminalGrid.sendToCell', 0, 'echo hello\r
 const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 10);
 ```
 
+## セキュリティ
+
+MCPブリッジは `127.0.0.1` でのみリッスンします (デフォルトポート `7890`、`terminalGrid.apiPort` で変更可)。リモート接続は受け付けません。
+
+Claude Desktop に MCP サーバーを登録すると、バンドルされた `mcp-server.js` を指す `terminal-grid` エントリが書き込まれます。アンインストール前に **Terminal Grid: Claude Desktop の MCP 登録解除** を実行すると綺麗に削除されます。参照先スクリプトが存在しない古い登録は、次回の拡張機能起動時に自動的にクリーンアップされます。
+
 ## 要件
 
 - VS Code 1.80.0+
