@@ -172,6 +172,10 @@ interface Cell {
   zoom: number;
   zoomLabel: HTMLSpanElement;
   labelEl: HTMLSpanElement;
+  scrollDownBtn: HTMLButtonElement;
+  userScrolledUp: boolean;
+  writing: boolean;
+  savedScrollTop: number;
 }
 
 const cells: (Cell | null)[] = [];
@@ -239,8 +243,34 @@ for (let i = 0; i < total; i++) {
   terminal.textarea?.addEventListener("focus", () => cellDiv.classList.add("focused"));
   terminal.textarea?.addEventListener("blur", () => cellDiv.classList.remove("focused"));
 
-  const cell: Cell = { terminal, fitAddon, el: cellDiv, zoom: 100, zoomLabel, labelEl: label };
+  // Scroll-to-bottom button
+  const scrollDownBtn = document.createElement("button");
+  scrollDownBtn.className = "scroll-down-btn";
+  scrollDownBtn.textContent = "\u2193";
+  scrollDownBtn.title = "Scroll to bottom";
+  scrollDownBtn.style.display = "none";
+  cellDiv.appendChild(scrollDownBtn);
+
+  const cell: Cell = { terminal, fitAddon, el: cellDiv, zoom: 100, zoomLabel, labelEl: label, scrollDownBtn, userScrolledUp: false, writing: false, savedScrollTop: 0 };
   cells.push(cell);
+
+  scrollDownBtn.addEventListener("click", () => {
+    terminal.scrollToBottom();
+    cell.userScrolledUp = false;
+    scrollDownBtn.style.display = "none";
+  });
+
+  // Track user scroll state via viewport DOM scroll event
+  const viewport = termContainer.querySelector(".xterm-viewport") as HTMLElement | null;
+  if (viewport) {
+    viewport.addEventListener("scroll", () => {
+      if (cell.writing) return;
+      const atBottom = viewport.scrollTop + viewport.clientHeight >= viewport.scrollHeight - 1;
+      cell.userScrolledUp = !atBottom;
+      cell.savedScrollTop = viewport.scrollTop;
+      scrollDownBtn.style.display = atBottom ? "none" : "block";
+    });
+  }
 
   // Ctrl+Wheel zoom — capture phase so it fires BEFORE xterm.js handles scroll
   cellDiv.addEventListener("wheel", (e: WheelEvent) => {
@@ -267,9 +297,16 @@ for (let i = 0; i < total; i++) {
       if (sel) {
         navigator.clipboard.writeText(sel).then(() => {
           terminal.focus();
-        }).catch(() => {});
+        }).catch(() => {
+          vscode.postMessage({ type: "clipboardWrite", text: sel });
+          terminal.focus();
+        });
         return false;
       }
+    }
+    if (e.ctrlKey && !e.shiftKey && e.type === "keydown" && e.key === "v") {
+      handlePaste(i);
+      return false;
     }
     // Let VS Code handle F-keys and common shortcuts
     if (e.type === "keydown") {
@@ -295,10 +332,45 @@ for (let i = 0; i < cells.length; i++) {
     e.stopPropagation();
     ctxTargetId = i;
     ctxSelectionPosition = cells[i]?.terminal.getSelectionPosition() ?? undefined;
-    ctxMenu.style.left = e.clientX + "px";
-    ctxMenu.style.top = e.clientY + "px";
+    // Position off-screen, show to measure, then place correctly
+    ctxMenu.style.left = "-9999px";
+    ctxMenu.style.top = "-9999px";
     ctxMenu.classList.add("show");
+    const menuRect = ctxMenu.getBoundingClientRect();
+    let x = e.clientX;
+    let y = e.clientY;
+    if (x + menuRect.width > window.innerWidth) x = Math.max(0, x - menuRect.width);
+    if (y + menuRect.height > window.innerHeight) y = Math.max(0, y - menuRect.height);
+    ctxMenu.style.left = x + "px";
+    ctxMenu.style.top = y + "px";
   });
+}
+
+// ── Paste helper (image detection → fallback to text) ──
+function handlePaste(cellId: number): void {
+  const cb = navigator.clipboard as unknown as { read?: () => Promise<{ types: string[]; getType(t: string): Promise<Blob> }[]> };
+  if (cb.read) {
+    cb.read().then(items => {
+      for (const item of items) {
+        const imgType = item.types.find(t => t.startsWith("image/"));
+        if (imgType) {
+          item.getType(imgType).then(blob => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              vscode.postMessage({ type: "pasteImage", id: cellId, data: reader.result as string });
+            };
+            reader.readAsDataURL(blob);
+          });
+          return;
+        }
+      }
+      vscode.postMessage({ type: "pasteRequest", id: cellId });
+    }).catch(() => {
+      vscode.postMessage({ type: "pasteRequest", id: cellId });
+    });
+  } else {
+    vscode.postMessage({ type: "pasteRequest", id: cellId });
+  }
 }
 
 document.addEventListener("click", () => {
@@ -317,7 +389,10 @@ ctxMenu.addEventListener("click", (e: Event) => {
         const tid = ctxTargetId;
         navigator.clipboard.writeText(sel).then(() => {
           cells[tid]?.terminal.focus();
-        }).catch(() => {});
+        }).catch(() => {
+          vscode.postMessage({ type: "clipboardWrite", text: sel });
+          cells[tid]?.terminal.focus();
+        });
       }
       break;
     }
@@ -349,15 +424,9 @@ ctxMenu.addEventListener("click", (e: Event) => {
       }
       break;
     }
-    case "paste": {
-      const tid = ctxTargetId;
-      navigator.clipboard.readText().then((text) => {
-        if (text && tid >= 0) {
-          vscode.postMessage({ type: "input", id: tid, data: text });
-          cells[tid]?.terminal.focus();
-        }
-      }).catch(() => {});
-    }
+    case "paste":
+      handlePaste(ctxTargetId);
+      cells[ctxTargetId]?.terminal.focus();
       break;
     case "clear":
       vscode.postMessage({ type: "clearTerminal", id: ctxTargetId });
@@ -456,9 +525,22 @@ function applyCellBgOverride(cell: Cell, bg: string): void {
 window.addEventListener("message", (event) => {
   const msg = event.data;
   switch (msg.type) {
-    case "output":
-      cells[msg.id]?.terminal.write(msg.data);
+    case "output": {
+      const c = cells[msg.id];
+      if (c) {
+        const wasUp = c.userScrolledUp;
+        const top = c.savedScrollTop;
+        const vp = c.el.querySelector(".xterm-viewport") as HTMLElement | null;
+        c.writing = true;
+        c.terminal.write(msg.data, () => {
+          if (wasUp && vp) {
+            vp.scrollTop = top;
+          }
+          c.writing = false;
+        });
+      }
       break;
+    }
     case "clear":
       cells[msg.id]?.terminal.clear();
       break;

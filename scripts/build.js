@@ -36,7 +36,20 @@ esbuild.buildSync({
   external: ["vscode", "node-pty"],
 });
 
-console.log("Build complete (webview + extension).");
+// Bundle MCP server (standalone Node.js script with SDK + zod inlined)
+esbuild.buildSync({
+  entryPoints: ["src/mcp-server.ts"],
+  bundle: true,
+  outfile: "mcp-server.js",
+  format: "cjs",
+  platform: "node",
+  target: "node18",
+  minify: true,
+  sourcemap: false,
+  banner: { js: "#!/usr/bin/env node" },
+});
+
+console.log("Build complete (webview + extension + mcp-server).");
 
 // ── Package VSIX & deploy ──
 const { execSync } = require("child_process");
@@ -74,7 +87,15 @@ for (const entry of entries) {
       fs.mkdirSync(dest, { recursive: true });
     } else {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, entry.getData());
+      try {
+        fs.writeFileSync(dest, entry.getData());
+      } catch (e) {
+        if (e.code === "EBUSY") {
+          console.log("  Skipped (busy): " + rel);
+        } else {
+          throw e;
+        }
+      }
     }
   }
 }

@@ -118,6 +118,7 @@ export class TerminalGridPanel {
   private _cols: number;
   private _hiddenCells: Set<number>;
   private _configListener: vscode.Disposable | undefined;
+  private _pasteImages: string[] = [];
 
 
   private static _getLog(): vscode.OutputChannel {
@@ -299,7 +300,7 @@ export class TerminalGridPanel {
         const data = hasNewline
           ? "\x1b[200~" + text + "\x1b[201~"
           : text;
-        t.pty.write(data + this._enterSeq(t.id));
+        this._chunkedWrite(t.pty, data + this._enterSeq(t.id));
       }
       // Track LLM context
       if (isLlmCommand(text)) this._insideLlm[t.id] = true;
@@ -329,7 +330,7 @@ export class TerminalGridPanel {
       const data = hasNewline
         ? "\x1b[200~" + text + "\x1b[201~"
         : text;
-      t.pty.write(data + this._enterSeq(cellId));
+      this._chunkedWrite(t.pty, data + this._enterSeq(cellId));
     }
     // Track LLM context so subsequent calls use the correct Enter
     if (isLlmCommand(text)) this._insideLlm[cellId] = true;
@@ -427,6 +428,12 @@ export class TerminalGridPanel {
     this._rows = rows;
     this._cols = cols;
 
+    // Set panel title with workspace name for taskbar distinction
+    const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name;
+    this._panel.title = workspaceName
+      ? `${workspaceName} — ${vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols)}`
+      : vscode.l10n.t("Terminal Grid {0}×{1}", rows, cols);
+
     // Compute hidden cells from merge regions
     const mergedRegions = context.globalState.get<{startRow: number; startCol: number; rowSpan: number; colSpan: number}[]>("mergedRegions", [])
       .filter(m => m.startRow + m.rowSpan <= rows && m.startCol + m.colSpan <= cols);
@@ -484,6 +491,33 @@ export class TerminalGridPanel {
         case "clipboardWrite":
           vscode.env.clipboard.writeText(msg.text);
           break;
+        case "pasteRequest": {
+          const clipText = await vscode.env.clipboard.readText();
+          if (clipText && this._terminals[msg.id]) {
+            const hasNewline = /\r?\n/.test(clipText);
+            const data = hasNewline
+              ? "\x1b[200~" + clipText + "\x1b[201~"
+              : clipText;
+            this._chunkedWrite(this._terminals[msg.id].pty, data);
+          }
+          break;
+        }
+        case "pasteImage": {
+          const match = (msg.data as string).match(/^data:image\/([^;]+);base64,(.+)$/s);
+          if (match && this._terminals[msg.id]) {
+            // Delete previous paste images
+            for (const old of this._pasteImages) {
+              try { fs.unlinkSync(old); } catch { /* ignore */ }
+            }
+            this._pasteImages = [];
+            const ext = match[1] === "jpeg" ? "jpg" : match[1];
+            const filePath = path.join(os.tmpdir(), `tg-paste-${Date.now()}.${ext}`);
+            fs.writeFileSync(filePath, Buffer.from(match[2], "base64"));
+            this._pasteImages.push(filePath);
+            this._chunkedWrite(this._terminals[msg.id].pty, filePath);
+          }
+          break;
+        }
         case "resize":
           try {
             this._terminals[msg.id]?.pty.resize(msg.cols, msg.rows);
@@ -739,7 +773,8 @@ export class TerminalGridPanel {
   /**
 
   /** Write large text to PTY in chunks to avoid ConPTY buffer overflow */
-  private static readonly CHUNK_SIZE = 65536;
+  private static readonly CHUNK_SIZE = 4096;
+  private static readonly CHUNK_DELAY = 10;
   private _chunkedWrite(pty: PtyLike, data: string): void {
     if (data.length <= TerminalGridPanel.CHUNK_SIZE) {
       pty.write(data);
@@ -751,7 +786,7 @@ export class TerminalGridPanel {
       const chunk = data.slice(offset, offset + TerminalGridPanel.CHUNK_SIZE);
       offset += TerminalGridPanel.CHUNK_SIZE;
       pty.write(chunk);
-      if (offset < data.length) setTimeout(writeNext, 5);
+      if (offset < data.length) setTimeout(writeNext, TerminalGridPanel.CHUNK_DELAY);
     };
     writeNext();
   }
@@ -864,6 +899,10 @@ export class TerminalGridPanel {
       }
     }
     this._terminals = [];
+    for (const f of this._pasteImages) {
+      try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
+    this._pasteImages = [];
     this._panel.dispose();
   }
 
@@ -994,6 +1033,28 @@ export class TerminalGridPanel {
     }
     .term-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
       background: var(--vscode-scrollbarSlider-hoverBackground, rgba(255,255,255,0.2));
+    }
+    .scroll-down-btn {
+      position: absolute;
+      bottom: 4px;
+      right: 10px;
+      z-index: 10;
+      width: 18px;
+      height: 18px;
+      border: none;
+      border-radius: 3px;
+      background: var(--vscode-button-background, #0e639c);
+      color: var(--vscode-button-foreground, #fff);
+      font-size: 11px;
+      line-height: 18px;
+      text-align: center;
+      cursor: pointer;
+      opacity: 0.85;
+      padding: 0;
+      transition: opacity 0.15s;
+    }
+    .scroll-down-btn:hover {
+      opacity: 1;
     }
     .ctx-menu {
       position: fixed; display: none; z-index: 1000;

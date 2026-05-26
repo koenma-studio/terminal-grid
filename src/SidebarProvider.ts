@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import * as cp from "child_process";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { THEME_NAMES, resolveThemeColors } from "./themes";
@@ -469,6 +470,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this._context.globalState.update("sectionStates", msg.states);
           break;
         }
+        // ── MCP Registration ──
+        case "registerMcpDesktop": {
+          const result = await this._registerMcpInConfig("desktop");
+          this._view?.webview.postMessage({ type: "mcpRegisterResult", target: "desktop", ...result });
+          break;
+        }
+        case "checkMcpRegistration": {
+          const status = this._checkMcpRegistration();
+          this._view?.webview.postMessage({ type: "mcpRegistrationStatus", ...status });
+          break;
+        }
+        case "showMcpAlreadyRegistered": {
+          vscode.window.showInformationMessage(
+            vscode.l10n.t("Terminal Grid MCP server is already registered in Claude Desktop.")
+          );
+          break;
+        }
         // ── node-pty install ──
         case "installNodePty": {
           try {
@@ -579,6 +597,73 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (dirty) {
       await this._context.globalState.update("cellOverrides", overrides);
+    }
+  }
+
+  private _getClaudeDesktopConfigPath(): string {
+    const platform = process.platform;
+    if (platform === "win32") {
+      return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "Claude", "claude_desktop_config.json");
+    } else if (platform === "darwin") {
+      return path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json");
+    } else {
+      return path.join(os.homedir(), ".config", "Claude", "claude_desktop_config.json");
+    }
+  }
+
+  private _getMcpServerEntry(): { command: string; args: string[]; env: Record<string, string> } {
+    const port = this._mcpPort || vscode.workspace.getConfiguration("terminalGrid").get<number>("apiPort", 7890);
+    return {
+      command: "node",
+      args: [path.join(this._context.extensionPath, "mcp-server.js")],
+      env: { TERMINAL_GRID_PORT: String(port) },
+    };
+  }
+
+  private _checkMcpRegistration(): { desktop: boolean } {
+    const desktopPath = this._getClaudeDesktopConfigPath();
+    let desktopRegistered = false;
+    try {
+      if (fs.existsSync(desktopPath)) {
+        const raw = fs.readFileSync(desktopPath, "utf-8");
+        const config = JSON.parse(raw);
+        desktopRegistered = !!config?.mcpServers?.["terminal-grid"];
+      }
+    } catch { /* ignore */ }
+    return { desktop: desktopRegistered };
+  }
+
+  private async _registerMcpInConfig(target: "desktop"): Promise<{ success: boolean; message: string }> {
+    const configPath = this._getClaudeDesktopConfigPath();
+    const entry = this._getMcpServerEntry();
+
+    try {
+      const dir = path.dirname(configPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      let config: Record<string, unknown> = {};
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, "utf-8");
+        config = JSON.parse(raw);
+      }
+
+      if (!config.mcpServers) {
+        config.mcpServers = {};
+      }
+      (config.mcpServers as Record<string, unknown>)["terminal-grid"] = entry;
+
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+
+      vscode.window.showInformationMessage(
+        vscode.l10n.t("Terminal Grid MCP server registered in Claude Desktop. Restart Claude Desktop to activate.")
+      );
+      return { success: true, message: "registered" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      vscode.window.showErrorMessage(vscode.l10n.t("Failed to register MCP server: {0}", message));
+      return { success: false, message };
     }
   }
 
@@ -1187,6 +1272,25 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       </div>
     </div>
 
+    <div class="glass-card collapsed" data-section="mcpRegister">
+      <div class="section-header collapsible">
+        <div class="section-label">${vscode.l10n.t("MCP Registration")}</div>
+        <span class="tip-wrap">
+          <span class="tip-icon">?</span>
+          <div class="tip-bubble">
+            ${vscode.l10n.t("Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.")}
+          </div>
+        </span>
+        <span class="collapse-icon">\u25BE</span>
+      </div>
+      <div class="section-body">
+        <div id="mcpRegStatus" style="font-size: 11px; opacity: .6; margin-bottom: 10px;"></div>
+        <button class="glass-btn" id="registerMcpDesktopBtn">
+          <span class="btn-icon">&#9889;</span> ${vscode.l10n.t("Register in Claude Desktop")}
+        </button>
+      </div>
+    </div>
+
     <div class="glass-card" data-section="settings">
       <div class="section-header collapsible">
         <div class="section-label">${vscode.l10n.t("Terminal Settings")}</div>
@@ -1288,8 +1392,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           <select class="glass-select" id="cmdPreset" style="flex:1;min-width:0;">
             <option value="">${vscode.l10n.t("Select command…")}</option>
             <option value="claude">claude</option>
+            <option value="claude --effort max">claude --effort max</option>
             <option value="codex">codex</option>
-            <option value="claude --dangerously-skip-permissions">claude --dangerously-skip-permissions</option>
+            <option value="claude --dangerously-skip-permissions">claude --skip-perms</option>
+            <option value="claude --dangerously-skip-permissions --effort max">claude --skip-perms --effort max</option>
             <option value="codex -s danger-full-access -a never">codex -s danger-full-access -a never</option>
             <option value="npm run dev">npm run dev</option>
             <option value="npm start">npm start</option>
@@ -1417,6 +1523,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       theme: vscode.l10n.t("Theme"),
       shellAuto: vscode.l10n.t("IDE Default"),
       shell: vscode.l10n.t("Shell"),
+      mcpAlreadyRegistered: vscode.l10n.t("Registered in Claude Desktop"),
+      mcpRegister: vscode.l10n.t("Register in Claude Desktop"),
     })};
     var vscode = acquireVsCodeApi();
 
@@ -1482,6 +1590,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     document.getElementById('reloadBtn').addEventListener('click', function() {
       vscode.postMessage({ type: 'reload' });
     });
+
+    // ── MCP Registration ──
+    var mcpRegStatusEl = document.getElementById('mcpRegStatus');
+    var registerMcpDesktopBtn = document.getElementById('registerMcpDesktopBtn');
+    var mcpAlreadyRegistered = false;
+    registerMcpDesktopBtn.addEventListener('click', function() {
+      if (mcpAlreadyRegistered) {
+        vscode.postMessage({ type: 'showMcpAlreadyRegistered' });
+        return;
+      }
+      registerMcpDesktopBtn.disabled = true;
+      registerMcpDesktopBtn.style.opacity = '0.5';
+      vscode.postMessage({ type: 'registerMcpDesktop' });
+    });
+    // Check registration status on load
+    vscode.postMessage({ type: 'checkMcpRegistration' });
+    function setMcpRegistered(registered) {
+      mcpAlreadyRegistered = registered;
+      if (registered) {
+        mcpRegStatusEl.innerHTML = '';
+        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2705</span> ' + __i18n.mcpAlreadyRegistered;
+        registerMcpDesktopBtn.disabled = false;
+        registerMcpDesktopBtn.style.opacity = '0.65';
+        registerMcpDesktopBtn.style.cursor = 'default';
+      } else {
+        mcpRegStatusEl.innerHTML = '';
+        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">&#9889;</span> ' + __i18n.mcpRegister;
+        registerMcpDesktopBtn.disabled = false;
+        registerMcpDesktopBtn.style.opacity = '1';
+        registerMcpDesktopBtn.style.cursor = 'pointer';
+      }
+    }
 
     // ── Cell Merge preview grid ──
     var mergeGridEl = document.getElementById('mergeGrid');
@@ -2733,6 +2873,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         var portValue = document.getElementById('mcpPortValue');
         if (portInfo) portInfo.style.display = msg.port > 0 ? 'block' : 'none';
         if (portValue) portValue.textContent = msg.port;
+      }
+      if (msg.type === 'mcpRegistrationStatus') {
+        setMcpRegistered(msg.desktop);
+      }
+      if (msg.type === 'mcpRegisterResult') {
+        setMcpRegistered(msg.success);
       }
       if (msg.type === 'configValues') {
         curZoom = msg.zoom;

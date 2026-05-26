@@ -1,114 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import * as fs from "fs";
-import * as os from "os";
 import { SidebarProvider } from "./SidebarProvider";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { McpBridge } from "./McpBridge";
-
-/** Build the MCP server entry for config files */
-function mcpServerEntry(extensionPath: string, port: number) {
-  return {
-    command: "node",
-    args: [path.join(extensionPath, "mcp-server.js")],
-    env: { TERMINAL_GRID_PORT: String(port) },
-  };
-}
-
-/** Upsert terminal-grid MCP server into a JSON config file */
-function upsertMcpConfig(filePath: string, extensionPath: string, port: number): void {
-  try {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    let config: Record<string, unknown> = {};
-    if (fs.existsSync(filePath)) {
-      config = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    }
-    if (!config.mcpServers || typeof config.mcpServers !== "object") {
-      config.mcpServers = {};
-    }
-    (config.mcpServers as Record<string, unknown>)["terminal-grid"] =
-      mcpServerEntry(extensionPath, port);
-    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), "utf-8");
-  } catch {
-    // Silently fail — don't block extension activation
-  }
-}
-
-/** Update terminal-grid entry in a .mcp.json file if it exists and has a stale path */
-function patchWorkspaceMcpJson(filePath: string, extensionPath: string, port: number): void {
-  try {
-    if (!fs.existsSync(filePath)) return;
-    const config = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    const servers = config?.mcpServers;
-    if (!servers || typeof servers !== "object") return;
-    const tg = servers["terminal-grid"];
-    if (!tg || !Array.isArray(tg.args) || tg.args.length === 0) return;
-    const currentMcpPath = path.join(extensionPath, "mcp-server.js");
-    if (tg.args[0] === currentMcpPath) return; // already up to date
-    tg.args[0] = currentMcpPath;
-    tg.env = { ...tg.env, TERMINAL_GRID_PORT: String(port) };
-    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), "utf-8");
-  } catch {
-    // Silently fail
-  }
-}
-
-/** Append terminal-grid MCP server to Codex TOML config if not already present */
-function syncCodexMcpConfig(extensionPath: string, port: number): void {
-  try {
-    const configPath = path.join(os.homedir(), ".codex", "config.toml");
-    const mcpPath = path.join(extensionPath, "mcp-server.js").replace(/\\/g, "\\\\");
-    if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, "utf-8");
-      if (content.includes("[mcp_servers.terminal-grid]")) {
-        // Update path if stale
-        const updated = content.replace(
-          /(\[mcp_servers\.terminal-grid\][\s\S]*?args\s*=\s*\[")([^"]*)("])/,
-          `$1${mcpPath}$3`
-        );
-        if (updated !== content) {
-          fs.writeFileSync(configPath, updated, "utf-8");
-        }
-        return;
-      }
-    }
-    // Append new section
-    const section = `\n[mcp_servers.terminal-grid]\ncommand = "node"\nargs = ["${mcpPath}"]\n\n[mcp_servers.terminal-grid.env]\nTERMINAL_GRID_PORT = "${port}"\n`;
-    const dir = path.dirname(configPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.appendFileSync(configPath, section, "utf-8");
-  } catch {
-    // Silently fail
-  }
-}
-
-/** Register/update Terminal Grid MCP server in Claude CLI + Claude Desktop configs */
-function syncClaudeMcpConfig(extensionPath: string, port: number): void {
-  // Claude CLI — ~/.claude.json
-  upsertMcpConfig(path.join(os.homedir(), ".claude.json"), extensionPath, port);
-  // Claude Desktop — %APPDATA%/Claude/claude_desktop_config.json (Win)
-  //                   ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
-  //                   ~/.config/Claude/claude_desktop_config.json (Linux)
-  const appData = process.platform === "win32"
-    ? process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming")
-    : process.platform === "darwin"
-      ? path.join(os.homedir(), "Library", "Application Support")
-      : path.join(os.homedir(), ".config");
-  upsertMcpConfig(
-    path.join(appData, "Claude", "claude_desktop_config.json"),
-    extensionPath,
-    port
-  );
-  // Patch .mcp.json in all open workspace folders
-  for (const folder of vscode.workspace.workspaceFolders || []) {
-    patchWorkspaceMcpJson(
-      path.join(folder.uri.fsPath, ".mcp.json"),
-      extensionPath,
-      port
-    );
-  }
-}
 
 let mcpBridge: McpBridge | undefined;
 let mcpStatusItem: vscode.StatusBarItem | undefined;
@@ -187,9 +81,6 @@ export function activate(context: vscode.ExtensionContext): void {
         mcpStatusItem.show();
         context.subscriptions.push(mcpStatusItem);
         sidebarProvider.setMcpPort(port);
-        // Auto-register MCP server in Claude CLI + Desktop + Codex configs
-        syncClaudeMcpConfig(context.extensionPath, port);
-        syncCodexMcpConfig(context.extensionPath, port);
       })
       .catch((err) => {
         vscode.window.showWarningMessage(
@@ -243,21 +134,6 @@ export function activate(context: vscode.ExtensionContext): void {
       })
     );
   }
-
-  // Re-sync Claude configs when apiPort changes
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("terminalGrid.apiPort")) {
-        const newPort = vscode.workspace
-          .getConfiguration("terminalGrid")
-          .get<number>("apiPort", 7890);
-        if (newPort > 0) {
-          syncClaudeMcpConfig(context.extensionPath, newPort);
-          syncCodexMcpConfig(context.extensionPath, newPort);
-        }
-      }
-    })
-  );
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

@@ -1,5 +1,6 @@
 out/
 node_modules/
+mcp-server.js
 *.vsix
 .env*
 .DS_Store
