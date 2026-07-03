@@ -113,6 +113,11 @@ export class TabIdAllocator {
     void context.globalState.update(TabIdAllocator.KEY, current + 1);
     return current;
   }
+  /** Ensure the allocator never hands out `id` again (nextTabId > id). No-op if already past it. */
+  static reserve(context: vscode.ExtensionContext, id: number): void {
+    const current = context.globalState.get<number>(TabIdAllocator.KEY, 0);
+    if (current <= id) void context.globalState.update(TabIdAllocator.KEY, id + 1);
+  }
   static peek(context: vscode.ExtensionContext): number {
     return context.globalState.get<number>(TabIdAllocator.KEY, 0);
   }

@@ -18,9 +18,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   tabState.init(context);
   await tabState.migrateOnce();
 
-  // MCP hygiene: remove stale Claude Desktop registrations whose mcp-server.js no longer
-  // exists (e.g., previous extension version was uninstalled).
-  SidebarProvider.autoCleanupStaleRegistration();
+  // MCP hygiene: keep the bundled MCP launcher at a version-independent global-storage location and
+  // repoint any existing terminal-grid registration (Claude Code + Claude Desktop) onto it, so an
+  // extension update never leaves a dangling versioned path ("MCP server not connected" after update).
+  SidebarProvider.ensureStableMcpScript(context);
+  SidebarProvider.healMcpRegistrations(context);
+  // Codex support dropped: remove any dangling terminal-grid entry from ~/.codex/config.toml.
+  SidebarProvider.pruneCodexRegistration();
+  // Shared/committed workspace .mcp.json: remove the stale versioned terminal-grid entry.
+  SidebarProvider.pruneWorkspaceMcpJson();
 
   // Bridge: legacy single-panel `lastGrid` → multi-tab `lastTabs[0]`.
   // Without this, returning users hit the deserialize fallback path (which is the zombie-tab source).
@@ -178,7 +184,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             new McpStdio(
               "Terminal Grid",
               "node",
-              [path.join(context.extensionPath, "mcp-server.js")],
+              [SidebarProvider.ensureStableMcpScript(context)],
               { TERMINAL_GRID_PORT: String(currentPort) },
               context.extension.packageJSON.version
             ),
@@ -535,10 +541,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 // Copy MCP configuration to clipboard
     vscode.commands.registerCommand("terminalGrid.copyMcpConfig", () => {
       const port = mcpBridge?.getPort() ?? 7890;
-      const mcpServerPath = path.join(
-        context.extensionPath,
-        "mcp-server.js"
-      );
+      const mcpServerPath = SidebarProvider.ensureStableMcpScript(context);
       const config = {
         mcpServers: {
           "terminal-grid": {

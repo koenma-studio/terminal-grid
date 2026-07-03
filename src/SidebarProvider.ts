@@ -70,12 +70,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       switch (msg.type) {
         case "openGrid":
+          // The new panel's register() fires panelRegistry.onDidChange, which
+          // drives the debounced sidebar refresh — no explicit sendConfig needed.
           await vscode.commands.executeCommand(
             "terminalGrid.openCustomGrid",
             msg.rows,
             msg.cols
           );
-          this.sendConfig();
           break;
         case "reload":
           await vscode.commands.executeCommand(
@@ -475,9 +476,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         case "saveMergeRegions": {
           const regions = msg.regions || [];
+          const prev = JSON.stringify(tabState.getMergedRegions(this._tid));
           await tabState.setMergedRegions(this._tid, regions);
-          // Excel-style: clear settings for hidden (absorbed) cells
-          const gridCols = vscode.workspace.getConfiguration("terminalGrid").get<number>("defaultCols", 3);
+          // Excel-style: clear settings for hidden (absorbed) cells. Use the column
+          // count the regions were authored against (sent by the webview merge grid),
+          // falling back to the active panel's cols, then the config default — so the
+          // absorbed-cell indices match the grid the regions belong to.
+          const gridCols = (typeof msg.cols === "number" && msg.cols > 0)
+            ? msg.cols
+            : (panelRegistry.getActive()?.getCols()
+                ?? vscode.workspace.getConfiguration("terminalGrid").get<number>("defaultCols", 3));
           const hidden = new Set<number>();
           for (const m of regions as {startRow: number; startCol: number; rowSpan: number; colSpan: number}[]) {
             for (let r = m.startRow; r < m.startRow + m.rowSpan; r++) {
@@ -501,6 +509,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             }
           }
           this.sendConfig();
+          // Live-apply: if this merge edit targets the currently-open grid (same tab
+          // and same dimensions), rebuild it so the change shows immediately instead
+          // of only on the next Open. Rebuilding restarts that grid's terminals, which
+          // is inherent to changing its cell topology. Skipped when nothing changed.
+          const active = panelRegistry.getActive();
+          if (prev !== JSON.stringify(regions) && active
+              && active.getRows() === msg.rows && active.getCols() === msg.cols) {
+            TerminalGridPanel.createOrShow(this._context, active.getRows(), active.getCols());
+          }
           break;
         }
         case "saveSectionStates": {
@@ -701,32 +718,227 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Activation-time hygiene: if Claude Desktop's config still lists our MCP server but the
-   * referenced script no longer exists on disk (e.g., a previous extension version was
-   * uninstalled or moved), quietly remove the stale entry. Does not re-register — the user
-   * keeps full control via the sidebar's MCP Registration card.
+   * Version-independent location for the MCP launcher. `context.globalStorageUri` is keyed by
+   * publisher.name (not version), so this path survives extension updates — unlike the versioned
+   * `.vscode/extensions/koenma.terminal-grid-<version>/` folder, which is deleted on every update
+   * (the root cause of "MCP server not connected" after updating).
    */
-  public static autoCleanupStaleRegistration(): void {
-    const configPath = SidebarProvider._claudeDesktopConfigPath();
-    if (!fs.existsSync(configPath)) return;
+  private static _stableMcpDest(context: vscode.ExtensionContext): string {
+    return path.join(context.globalStorageUri.fsPath, "mcp-server.js");
+  }
+
+  /**
+   * Copy the bundled mcp-server.js into version-independent global storage (refreshing it when the
+   * bundled copy is newer) so a registered MCP path never breaks across updates. Best-effort.
+   * Returns the path to register (forward-slashed; the stable copy when available, else the bundled
+   * script as a fallback). All MCP-path call sites go through this.
+   */
+  public static ensureStableMcpScript(context: vscode.ExtensionContext): string {
+    const src = path.join(context.extensionPath, "mcp-server.js");
     try {
-      const raw = fs.readFileSync(configPath, "utf-8");
-      const config = JSON.parse(raw) as { mcpServers?: Record<string, { args?: string[] }> };
-      const entry = config.mcpServers?.["terminal-grid"];
-      if (!entry) return;
-      const scriptPath = entry.args?.[0];
-      if (scriptPath && !fs.existsSync(scriptPath)) {
-        delete config.mcpServers!["terminal-grid"];
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
+      const dest = SidebarProvider._stableMcpDest(context);
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        // Refresh the copy on version change — deterministic, immune to backdated/normalized VSIX
+        // mtimes (mtime comparison can miss a content change when zip timestamps are normalized).
+        const marker = dest + ".version";
+        const version = String(context.extension?.packageJSON?.version ?? "");
+        let stamped = "";
+        try { stamped = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : ""; } catch { /* ignore */ }
+        if (!fs.existsSync(dest) || stamped !== version) {
+          fs.copyFileSync(src, dest);
+          try { fs.writeFileSync(marker, version); } catch { /* best-effort */ }
+        }
       }
-    } catch { /* config malformed or unreadable — leave alone */ }
+      if (fs.existsSync(dest)) return dest.replace(/\\/g, "/");
+    } catch { /* fall through to bundled-script fallback */ }
+    return src.replace(/\\/g, "/");
+  }
+
+  /** Case/separator-insensitive (on Windows) path equality, for the heal idempotency guard. */
+  private static _samePath(a: string, b: string): boolean {
+    try {
+      const ra = path.resolve(a), rb = path.resolve(b);
+      return process.platform === "win32" ? ra.toLowerCase() === rb.toLowerCase() : ra === rb;
+    } catch { return a === b; }
+  }
+
+  /**
+   * Activation-time self-heal: repoint any EXISTING terminal-grid MCP registration whose script
+   * path is broken or pinned to a versioned extension folder onto the stable global-storage path —
+   * in both Claude Code (~/.claude.json: root + per-project) and Claude Desktop configs. Never
+   * creates entries (so users who never opted in are untouched) and never touches other servers.
+   * Only writes when something actually changes, via an atomic temp+rename. Best-effort; never throws.
+   */
+  public static healMcpRegistrations(context: vscode.ExtensionContext): void {
+    let stablePath: string;
+    try {
+      const dest = SidebarProvider._stableMcpDest(context);
+      if (!fs.existsSync(dest)) return; // no stable copy yet — don't repoint to a missing file
+      stablePath = dest.replace(/\\/g, "/");
+    } catch { return; }
+
+    // Only repoint paths that are unambiguously a versioned extension install or broken — never a
+    // user's deliberately-chosen valid custom path (e.g. a dev pointing at their repo checkout).
+    const isVersionedInstall = (p: string): boolean => /[\\/]extensions[\\/]koenma\.terminal-grid-\d/.test(p);
+
+    const configPaths = [
+      path.join(os.homedir(), ".claude.json"),     // Claude Code (root + per-project mcpServers)
+      SidebarProvider._claudeDesktopConfigPath(),   // Claude Desktop
+    ];
+    // NOTE: workspace .mcp.json is handled by pruneWorkspaceMcpJson() instead — it is a
+    // shared/committed project file, so we REMOVE the stale versioned entry there rather than
+    // repoint it to a machine-specific absolute path (which would break teammates / dirty the repo).
+
+    for (const cfgPath of configPaths) {
+      try {
+        if (!fs.existsSync(cfgPath)) continue;
+        const rawBefore = fs.readFileSync(cfgPath, "utf-8");
+        const config = JSON.parse(rawBefore) as Record<string, unknown>;
+
+        // Every mcpServers map this config holds: root + (Claude Code) per-project.
+        const maps: Array<Record<string, { args?: unknown }>> = [];
+        const collect = (m: unknown): void => {
+          if (m && typeof m === "object") maps.push(m as Record<string, { args?: unknown }>);
+        };
+        collect((config as { mcpServers?: unknown }).mcpServers);
+        const projects = (config as { projects?: Record<string, { mcpServers?: unknown }> }).projects;
+        if (projects && typeof projects === "object") {
+          for (const proj of Object.values(projects)) collect(proj?.mcpServers);
+        }
+
+        let changed = false;
+        for (const map of maps) {
+          const entry = map["terminal-grid"];
+          const args = entry?.args;
+          if (!Array.isArray(args)) continue;
+          for (let i = 0; i < args.length; i++) {
+            const a = args[i];
+            if (typeof a !== "string" || !/mcp-server\.js$/i.test(a)) continue;
+            if (SidebarProvider._samePath(a, stablePath)) continue; // already stable — idempotent
+            if (!fs.existsSync(a) || isVersionedInstall(a)) { args[i] = stablePath; changed = true; }
+          }
+        }
+
+        if (!changed) continue;
+        // Write via temp + atomic rename, guarded by an optimistic-concurrency check: re-read the
+        // file immediately before the rename and bail if it changed since our read, so we never
+        // clobber a write made by a running Claude Code between our read and rename.
+        const out = JSON.stringify(config, null, 2);
+        const tmp = `${cfgPath}.tg-tmp.${process.pid}.${Date.now()}`;
+        try {
+          fs.writeFileSync(tmp, out, "utf-8");
+          if (fs.readFileSync(cfgPath, "utf-8") === rawBefore) {
+            fs.renameSync(tmp, cfgPath); // atomic replace (MoveFileEx REPLACE_EXISTING on Windows)
+          }
+        } finally {
+          try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
+        }
+      } catch { /* malformed/locked config — leave it untouched */ }
+    }
+  }
+
+  /**
+   * Codex support has been dropped (no longer tested/maintained). Rather than carry an untested TOML
+   * integration, remove any DANGLING terminal-grid registration (broken or versioned-install path)
+   * from ~/.codex/config.toml so updaters stop seeing "MCP server not connected" there. Removes both
+   * the [mcp_servers.terminal-grid] table and its [mcp_servers.terminal-grid.env] subtable. Leaves a
+   * working, deliberately-set custom entry alone. Atomic write + optimistic-concurrency guard.
+   * Best-effort; never throws.
+   */
+  public static pruneCodexRegistration(): void {
+    const cfgPath = path.join(os.homedir(), ".codex", "config.toml");
+    try {
+      if (!fs.existsSync(cfgPath)) return;
+      const rawBefore = fs.readFileSync(cfgPath, "utf-8");
+      if (!rawBefore.includes("[mcp_servers.terminal-grid]")) return;
+      const eol = rawBefore.includes("\r\n") ? "\r\n" : "\n";
+
+      // Bracket-depth-aware TOML table tokenizer: a header is only recognized at depth 0, so a
+      // multi-line array / inline-table value (whose continuation lines may start with '[') inside a
+      // table never splits it. Each block = a header line + its body (block 0 = preamble).
+      const stripStrings = (l: string): string => l.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, "");
+      const headerName = (l: string): string | null => {
+        const m = /^\s*\[\[?([^[\]]+)\]\]?\s*(?:#.*)?$/.exec(l);
+        return m ? m[1].trim() : null;
+      };
+      const blocks: Array<{ name: string | null; lines: string[] }> = [{ name: null, lines: [] }];
+      let depth = 0;
+      for (const line of rawBefore.split(/\r?\n/)) {
+        const name = depth === 0 ? headerName(line) : null;
+        if (name !== null) blocks.push({ name, lines: [line] });
+        else blocks[blocks.length - 1].lines.push(line);
+        for (const ch of stripStrings(line)) {
+          if (ch === "[" || ch === "{") depth++;
+          else if (ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
+        }
+      }
+
+      const isTg = (name: string | null): boolean =>
+        name === "mcp_servers.terminal-grid" || (name?.startsWith("mcp_servers.terminal-grid.") ?? false);
+
+      // Decide from the MAIN tg table's OWN args only (bounded — never borrow a sibling table's path).
+      const mainTg = blocks.find((b) => b.name === "mcp_servers.terminal-grid");
+      const argMatch = mainTg ? /args\s*=\s*\[\s*"((?:[^"\\]|\\.)*)"/.exec(mainTg.lines.join("\n")) : null;
+      const argPath = argMatch ? argMatch[1].replace(/\\\\/g, "\\") : "";
+      const broken = !!argPath && !fs.existsSync(argPath);
+      const versioned = /[\\/]extensions[\\/]koenma\.terminal-grid-\d/.test(argPath);
+      if (!argPath || (!broken && !versioned)) return;
+
+      const updated = blocks.filter((b) => !isTg(b.name)).flatMap((b) => b.lines).join(eol).replace(/^(?:\r?\n)+/, "");
+      if (updated === rawBefore) return;
+
+      const tmp = `${cfgPath}.tg-tmp.${process.pid}.${Date.now()}`;
+      try {
+        fs.writeFileSync(tmp, updated, "utf-8");
+        if (fs.readFileSync(cfgPath, "utf-8") === rawBefore) fs.renameSync(tmp, cfgPath);
+      } finally {
+        try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
+      }
+    } catch { /* malformed/locked config — leave it untouched */ }
+  }
+
+  /**
+   * Workspace `.mcp.json` is a shared/committed project file, so (unlike user-level configs) we do
+   * NOT repoint terminal-grid to a machine-specific absolute path — that would break teammates and
+   * dirty the repo. Instead remove the stale v0.3.7 artifact: a terminal-grid entry whose arg is a
+   * versioned extension-install path. A deliberately-set relative/custom project path is left alone.
+   * Atomic write + optimistic-concurrency guard; preserves indent + trailing newline. Never throws.
+   */
+  public static pruneWorkspaceMcpJson(): void {
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      const cfgPath = path.join(folder.uri.fsPath, ".mcp.json");
+      try {
+        if (!fs.existsSync(cfgPath)) continue;
+        const rawBefore = fs.readFileSync(cfgPath, "utf-8");
+        const config = JSON.parse(rawBefore) as { mcpServers?: Record<string, { args?: unknown }> };
+        const args = config.mcpServers?.["terminal-grid"]?.args;
+        if (!Array.isArray(args)) continue;
+        const isArtifact = args.some((a) => typeof a === "string" && /[\\/]extensions[\\/]koenma\.terminal-grid-\d/.test(a));
+        if (!isArtifact) continue;
+
+        delete config.mcpServers!["terminal-grid"];
+        const indentMatch = /\n([ \t]+)\S/.exec(rawBefore);
+        const indent: string | number = indentMatch ? indentMatch[1] : 2;
+        let out = JSON.stringify(config, null, indent);
+        if (rawBefore.endsWith("\n")) out += "\n";
+
+        const tmp = `${cfgPath}.tg-tmp.${process.pid}.${Date.now()}`;
+        try {
+          fs.writeFileSync(tmp, out, "utf-8");
+          if (fs.readFileSync(cfgPath, "utf-8") === rawBefore) fs.renameSync(tmp, cfgPath);
+        } finally {
+          try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
+        }
+      } catch { /* malformed/locked config — leave it untouched */ }
+    }
   }
 
   private _getMcpServerEntry(): { command: string; args: string[]; env: Record<string, string> } {
     const port = this._mcpPort || vscode.workspace.getConfiguration("terminalGrid").get<number>("apiPort", 7890);
     return {
       command: "node",
-      args: [path.join(this._context.extensionPath, "mcp-server.js")],
+      args: [SidebarProvider.ensureStableMcpScript(this._context)],
       env: { TERMINAL_GRID_PORT: String(port) },
     };
   }
@@ -853,7 +1065,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       mergedRegions: tabState.getMergedRegions(this._tid),
       hiddenCells: (() => {
         const mr = tabState.getMergedRegions(this._tid);
-        const gc = cfg.get<number>("defaultCols", 3);
+        // Match the panel's coordinate system (gridTotal uses panel rows×cols);
+        // fall back to the config default only when no grid is open.
+        const gc = panel?.getCols() ?? cfg.get<number>("defaultCols", 3);
         const h: number[] = [];
         for (const m of mr) {
           for (let r = m.startRow; r < m.startRow + m.rowSpan; r++) {
@@ -1650,12 +1864,46 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           <span class="setting-label">${vscode.l10n.t("Command")}</span>
           <select class="glass-select" id="cmdPreset" style="flex:1;min-width:0;">
             <option value="">${vscode.l10n.t("Select command…")}</option>
-            <option value="claude">claude</option>
-            <option value="claude --effort max">claude --effort max</option>
-            <option value="codex">codex</option>
-            <option value="claude --dangerously-skip-permissions">claude --skip-perms</option>
-            <option value="claude --dangerously-skip-permissions --effort max">claude --skip-perms --effort max</option>
-            <option value="codex -s danger-full-access -a never">codex -s danger-full-access -a never</option>
+            <optgroup label="${vscode.l10n.t("Claude")}">
+              <option value="claude">claude</option>
+              <option value="claude --dangerously-skip-permissions">claude --skip-perms</option>
+            </optgroup>
+            <optgroup label="${vscode.l10n.t("Claude · effort (launch)")}">
+              <option value="claude --effort low">claude --effort low</option>
+              <option value="claude --effort medium">claude --effort medium</option>
+              <option value="claude --effort high">claude --effort high</option>
+              <option value="claude --effort xhigh">claude --effort xhigh</option>
+              <option value="claude --effort max">claude --effort max</option>
+              <option value="claude --dangerously-skip-permissions --effort low">claude --skip-perms --effort low</option>
+              <option value="claude --dangerously-skip-permissions --effort medium">claude --skip-perms --effort medium</option>
+              <option value="claude --dangerously-skip-permissions --effort high">claude --skip-perms --effort high</option>
+              <option value="claude --dangerously-skip-permissions --effort xhigh">claude --skip-perms --effort xhigh</option>
+              <option value="claude --dangerously-skip-permissions --effort max">claude --skip-perms --effort max</option>
+            </optgroup>
+            <optgroup label="${vscode.l10n.t("Claude · model (launch)")}">
+              <option value="claude --model fable">claude --model fable (Fable 5)</option>
+              <option value="claude --model claude-fable-5">claude --model claude-fable-5</option>
+              <option value="claude --model opus">claude --model opus (Opus 4.8)</option>
+              <option value="claude --model sonnet">claude --model sonnet (Sonnet 4.6)</option>
+              <option value="claude --model haiku">claude --model haiku (Haiku 4.5)</option>
+              <option value="claude --model fable --effort max">claude --model fable --effort max</option>
+              <option value="claude --dangerously-skip-permissions --model fable --effort max">claude --skip-perms --model fable --effort max</option>
+              <option value="claude --model fable --fallback-model opus">claude --model fable --fallback-model opus</option>
+            </optgroup>
+            <optgroup label="${vscode.l10n.t("Codex")}">
+              <option value="codex">codex</option>
+              <option value="codex -s danger-full-access -a never">codex -s danger-full-access -a never</option>
+            </optgroup>
+            <optgroup label="${vscode.l10n.t("Claude · slash (after start)")}">
+              <option value="/resume">/resume</option>
+              <option value="/compact">/compact</option>
+              <option value="/effort low">/effort low</option>
+              <option value="/effort medium">/effort medium</option>
+              <option value="/effort high">/effort high</option>
+              <option value="/effort xhigh">/effort xhigh</option>
+              <option value="/effort max">/effort max</option>
+              <option value="/effort ultracode">/effort ultracode</option>
+            </optgroup>
             <option value="npm run dev">npm run dev</option>
             <option value="npm start">npm start</option>
             <option value="npm test">npm test</option>
@@ -1664,8 +1912,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             <option value="docker compose up">docker compose up</option>
             <option value="ssh">ssh</option>
             <option value="htop">htop</option>
-            <option value="/resume">/resume</option>
-            <option value="/compact">/compact</option>
             <option value="yes">yes</option>
             <option value="exit">exit</option>
             <option value="__enter__">Enter (\u21B5)</option>
@@ -2043,7 +2289,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       mergeSelStart = null;
       mergeSelEnd = null;
       renderMergeGrid();
-      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions });
+      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions, rows: mergeRows, cols: mergeCols });
     });
 
     unmergeBtn.addEventListener('click', function() {
@@ -2055,7 +2301,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       mergeSelStart = null;
       mergeSelEnd = null;
       renderMergeGrid();
-      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions });
+      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions, rows: mergeRows, cols: mergeCols });
     });
 
     mergeClearBtn.addEventListener('click', function() {
@@ -2063,7 +2309,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       mergeSelStart = null;
       mergeSelEnd = null;
       renderMergeGrid();
-      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions });
+      vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions, rows: mergeRows, cols: mergeCols });
     });
 
     // Rebuild merge grid when grid size changes
@@ -2075,7 +2321,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           mergeSelStart = null;
           mergeSelEnd = null;
           buildMergeGrid();
-          vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions });
+          vscode.postMessage({ type: 'saveMergeRegions', regions: mergedRegions, rows: mergeRows, cols: mergeCols });
         }
       });
       observer.observe(document.getElementById('sizeLabel'), { childList: true, subtree: true });

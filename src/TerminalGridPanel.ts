@@ -28,13 +28,6 @@ function stepsDelay(ms: number): Promise<void> {
 }
 
 const DEFAULT_STEP_DELAY = 3000;
-const LLM_PROMPT_TIMEOUT = 15000; // Max wait for LLM prompt (15s)
-const LLM_PROMPT_POLL = 200;      // Poll interval (ms)
-/** Patterns that indicate an LLM CLI is ready for input */
-const LLM_READY_PATTERNS = [
-  /[❯>✻⏵›]\s*$/m,         // Claude, Gemini, Copilot, Codex prompt
-  /aider>\s*$/m,           // Aider prompt
-];
 
 /** Detect Windows build number. Win11 = 22000+, Win10 = below. */
 const WIN_BUILD = (() => {
@@ -66,6 +59,41 @@ function getLineEnding(shellType: string): string {
   }
   return "\r";
 }
+
+// ── Startup readiness gate ──────────────────────────────────────────────────
+// Negative-gated: a cell is "ready for the next command" when its output has
+// SETTLED, a TUI/shell is up, and NO modal phrase (e.g. a trust-folder dialog)
+// is on screen. We deliberately do NOT positively recognise the input box by its
+// glyphs — placeholder text, box borders and ConPTY frame concatenation make
+// that brittle (the old lone-"❯" pattern actually matched the trust dialog's
+// selection cursor, never the real input box). A missed positive signal just
+// costs an extra poll; a missed modal is the only thing that corrupts, so all
+// the rigor (and a safe abort) lives on the negative side.
+const READY_DEADLINE = 20000;       // hard ceiling for a single readiness wait
+const POLL_MS = 150;
+const SETTLE_CAP_MS = 2500;         // best-effort settle ceiling (spinners never go fully quiet)
+const QUIET_MS = process.platform === "win32" ? 450 : 300;
+const ALT_DWELL_MS = 1200;          // min modal-free dwell after alt-screen before declaring "ready"
+const NO_SIGNAL_READY_MS = 3000;    // settled + no-modal + rendered this long ⇒ ready even with no protocol/anchor signal
+const ALT_ENABLE = /\x1b\[\?1049h/; // enter alt-screen (TUI up)
+const ALT_DISABLE = /\x1b\[\?1049l/;
+const SCREEN_CLEAR = /\x1b\[[23]J/;  // full clear / scrollback clear → the current screen restarts
+// Aider uses neither alt-screen nor Kitty — its anchored prompt is its ready signal.
+const ANCHOR_AIDER = /(^|\n)[ \t]*aider>[ \t]*$/;
+// Textual markers that a known LLM CLI's input UI is up & idle. Chosen to be ABSENT from trust
+// dialogs (so they never cause a premature ready) and to accelerate readiness when present. Claude
+// Code renders INLINE — no alt-screen, no Kitty keyboard protocol — so these markers (plus the
+// settle fallback) are how its readiness is detected; protocol signals are accelerators only.
+const ANCHOR_LLM_READY = /shift\+tab to cycle|\? for shortcuts|esc to (interrupt|clear)|ctrl\+c to|bypass permissions|accept edits|plan mode/i;
+// Trust/permission modals. Phrases are far more stable across CLI versions than box glyphs;
+// a missed phrase degrades to an abort (never types), never to corruption. accept() returns the
+// keystroke that confirms the DEFAULT-highlighted option ("Yes, proceed") — Kitty-aware Enter.
+const llmEnter = (csiU: boolean): string => (csiU ? LLM_ENTER : "\r");
+const MODAL_RULES: { test: RegExp; accept: (csiU: boolean) => string }[] = [
+  { test: /do you trust the files in this folder/i, accept: llmEnter },                                       // Claude Code
+  { test: /do you trust the (files|contents) (in|of) this (directory|folder|workspace)/i, accept: llmEnter }, // Codex & variants
+  { test: /\btrust (this|the) (folder|directory|workspace)\b/i, accept: llmEnter },                            // Gemini-ish
+];
 
 function resolveStartupSteps(
   cellOverrides: Record<number, { startupSteps?: StartupStep[]; startupCommand?: string; [k: string]: unknown }>,
@@ -120,6 +148,11 @@ export class TerminalGridPanel {
   private _csiUMode: boolean[] = [];            // Kitty keyboard protocol active per cell
   private _insideLlm: boolean[] = [];            // Cell is running an LLM CLI process
   private _cellShellType: string[] = [];          // Shell type per cell for EOL detection
+  private _lastByteTs: number[] = [];            // last PTY-output timestamp per cell (settle clock)
+  private _altScreen: boolean[] = [];            // cell is in the alt-screen buffer (TUI up)
+  private _altDwellStart: number[] = [];         // when alt-screen was entered (dwell gate)
+  private _stepWatermark: number[] = [];         // buffer offset marking the start of the current screen
+  private _startupSent: boolean[] = [];          // startup steps already triggered for this cell
   private static readonly OUTPUT_BUFFER_SIZE = 50000;
   private static readonly CSI_U_ENABLE = /\x1b\[>[0-9]+u/;
   private static readonly CSI_U_DISABLE = /\x1b\[<[0-9]*u/;
@@ -268,12 +301,23 @@ export class TerminalGridPanel {
         if (pending !== undefined && pending !== null) {
           tabId = pending;
           void context.globalState.update("pendingFirstTabId", undefined);
-        } else {
+        } else if (options?.forceNewTab) {
+          // Explicit "New Tab" → allocate a fresh id that is never reused.
           tabId = TabIdAllocator.next(context);
+        } else {
+          // Plain "Open" with no grid currently open → reuse tab 0, the default
+          // namespace the sidebar binds to when nothing is open (the _tid fallback).
+          // Without this, Open allocates a new id and reads an empty namespace, so
+          // sidebar-configured merges/startup commands silently fail to apply.
+          tabId = 0;
         }
       }
       cellIds = options?.cellIdsOverride ?? cellIdMapper.allocate(context, rows * cols);
     }
+
+    // Reserve this id so the allocator never hands it out again — prevents a
+    // later "New Tab" from colliding with a reused id (e.g. tab 0).
+    TabIdAllocator.reserve(context, tabId);
 
     const panel = vscode.window.createWebviewPanel(
       "terminalGrid",
@@ -321,6 +365,7 @@ export class TerminalGridPanel {
       }
     }
     const tabId = tabIdOverride ?? TabIdAllocator.next(context);
+    TabIdAllocator.reserve(context, tabId);
     const cellIds = cellIdsOverride ?? cellIdMapper.allocate(context, rows * cols);
     const instance = new TerminalGridPanel(panel, context, rows, cols, tabId, cellIds);
     panelRegistry.register(tabId, instance, replaceIdx);
@@ -796,10 +841,8 @@ export class TerminalGridPanel {
       if (this._hiddenCells.has(i)) {
         const noopPty: PtyLike = { onData() {}, write() {}, resize() {}, kill() {} };
         this._terminals.push({ id: i, pty: noopPty });
-        this._outputBuffers[i] = "";
         this._cellShellType[i] = "";
-        this._insideLlm[i] = false;
-        this._csiUMode[i] = false;
+        this._resetCellState(i, true);
         continue;
       }
       const cellShell = cellOverrides[i]?.shellType || globalShell || "";
@@ -807,26 +850,8 @@ export class TerminalGridPanel {
       const id = i;
       const steps = resolveStartupSteps(cellOverrides, expandedCmds, defaultSteps, defaultCommand, i);
       this._cellShellType[id] = cellShell;
-      this._insideLlm[id] = false;
-      this._outputBuffers[id] = "";
-      this._csiUMode[id] = false;
-      let startupSent = false;
-      pty.onData((data: string) => {
-        if (!this._disposed) {
-          // Track Kitty keyboard protocol mode
-          if (TerminalGridPanel.CSI_U_ENABLE.test(data)) { this._csiUMode[id] = true; }
-          if (TerminalGridPanel.CSI_U_DISABLE.test(data)) { this._csiUMode[id] = false; }
-          this._outputBuffers[id] = (this._outputBuffers[id] || "") + data;
-          if (this._outputBuffers[id].length > TerminalGridPanel.OUTPUT_BUFFER_SIZE) {
-            this._outputBuffers[id] = this._outputBuffers[id].slice(-TerminalGridPanel.OUTPUT_BUFFER_SIZE);
-          }
-          this._panel.webview.postMessage({ type: "output", id, data });
-          if (!startupSent && steps.length > 0) {
-            startupSent = true;
-            this._executeSteps(id, steps, this._cellShellType[id] || "");
-          }
-        }
-      });
+      this._resetCellState(id);
+      pty.onData((data: string) => this._handlePtyData(id, data, steps));
       this._terminals.push({ id: i, pty });
     }
 
@@ -872,27 +897,8 @@ export class TerminalGridPanel {
     const defaultSteps = tabState.getDefaultSteps(this._tabId);
     const steps = resolveStartupSteps(cellOverrides, expanded, defaultSteps, defaultCommand, id);
     this._cellShellType[id] = cellShell;
-    this._insideLlm[id] = false;
-    let startupSent = false;
-    this._outputBuffers[id] = "";
-    this._csiUMode[id] = false;
-
-    pty.onData((data: string) => {
-      if (!this._disposed) {
-        // Track Kitty keyboard protocol mode
-        if (TerminalGridPanel.CSI_U_ENABLE.test(data)) { this._csiUMode[id] = true; }
-        if (TerminalGridPanel.CSI_U_DISABLE.test(data)) { this._csiUMode[id] = false; }
-        this._outputBuffers[id] = (this._outputBuffers[id] || "") + data;
-        if (this._outputBuffers[id].length > TerminalGridPanel.OUTPUT_BUFFER_SIZE) {
-          this._outputBuffers[id] = this._outputBuffers[id].slice(-TerminalGridPanel.OUTPUT_BUFFER_SIZE);
-        }
-        this._panel.webview.postMessage({ type: "output", id, data });
-        if (!startupSent && steps.length > 0) {
-          startupSent = true;
-          this._executeSteps(id, steps, this._cellShellType[id] || "");
-        }
-      }
-    });
+    this._resetCellState(id);
+    pty.onData((data: string) => this._handlePtyData(id, data, steps));
 
     this._terminals[id] = { id, pty };
   }
@@ -931,18 +937,62 @@ export class TerminalGridPanel {
   private static readonly LLM_TYPE_MAX_RETRIES = 5;
   private static readonly LLM_ECHO_WAIT = 2000;  // ms to wait for echo per attempt
 
-  /** Wait until the LLM CLI shows a prompt (ready for input), or timeout */
-  private async _waitForLlmPrompt(cellId: number): Promise<boolean> {
-    const bufBefore = (this._outputBuffers[cellId] || "").length;
-    const deadline = Date.now() + LLM_PROMPT_TIMEOUT;
-    while (Date.now() < deadline) {
-      await stepsDelay(LLM_PROMPT_POLL);
-      const buf = this._outputBuffers[cellId] || "";
-      const recent = TerminalGridPanel._stripAnsi(buf.slice(bufBefore));
-      if (LLM_READY_PATTERNS.some((p) => p.test(recent))) return true;
-      if (this._disposed) return false;
+  /** The current screen for a cell: stripped output since the last screen-clear/step watermark. */
+  private _screen(cellId: number): string {
+    const buf = this._outputBuffers[cellId] || "";
+    const wm = Math.min(this._stepWatermark[cellId] || 0, buf.length);
+    return TerminalGridPanel._stripAnsi(buf.slice(wm));
+  }
+
+  private _modalHit(screen: string): { test: RegExp; accept: (csiU: boolean) => string } | undefined {
+    return MODAL_RULES.find((r) => r.test.test(screen));
+  }
+
+  /** Wait until output is quiet (no new bytes for QUIET_MS) or a best-effort cap, never forever. */
+  private async _settle(cellId: number, deadline: number): Promise<void> {
+    const start = Date.now();
+    while (Date.now() < deadline && !this._disposed) {
+      if (Date.now() - (this._lastByteTs[cellId] || 0) >= QUIET_MS) return;  // genuinely quiet
+      if (Date.now() - start >= SETTLE_CAP_MS) return;                        // ceiling (spinners)
+      await stepsDelay(POLL_MS);
     }
-    return false;
+  }
+
+  /** Settle → classify → (auto-accept progressing modals) → "ready" | "modal" | "timeout".
+   *  Returns "ready" only when the screen is settled, a TUI is up (Kitty/alt-screen, dwelled) or an
+   *  Aider prompt is anchored, AND no modal phrase is present. "modal" means a trust dialog is up and
+   *  we are not auto-accepting (or it is stuck) — the caller must NOT type. */
+  private async _waitForReady(cellId: number, autoAccept: boolean, gen: number): Promise<"ready" | "modal" | "timeout"> {
+    const start = Date.now();
+    const deadline = start + READY_DEADLINE;
+    let lastModalHash = "";
+    while (Date.now() < deadline && !this._disposed && this._stepGeneration[cellId] === gen) {
+      await this._settle(cellId, deadline);
+      const screen = this._screen(cellId);
+      const modal = this._modalHit(screen);
+      if (modal) {
+        if (!autoAccept) return "modal";
+        const hash = screen.slice(-400);
+        if (hash === lastModalHash) return "modal";          // accept produced no change → stuck, abort
+        lastModalHash = hash;
+        this._terminals[cellId]?.pty.write(modal.accept(this._csiUMode[cellId]));
+        this._lastByteTs[cellId] = Date.now();               // force a fresh settle after the keystroke
+        continue;                                            // progress-based loop handles multi-pane onboarding
+      }
+      // No modal on a settled screen. Protocol signals (Kitty/alt-screen) are accelerators only —
+      // Claude/Codex render inline and may emit neither, so readiness must NOT require them. Ready
+      // when the app has clearly rendered a UI AND (a protocol/prompt signal is up, or we've waited
+      // long enough that a trust dialog — the sole typing hazard — would already have shown & been
+      // vetoed above).
+      const rendered = screen.replace(/\s+/g, "").length >= 40;
+      const dwellOk = !this._altScreen[cellId] || (Date.now() - (this._altDwellStart[cellId] || 0) >= ALT_DWELL_MS);
+      const signal = this._csiUMode[cellId] || this._altScreen[cellId]
+        || ANCHOR_AIDER.test(screen) || ANCHOR_LLM_READY.test(screen);
+      const waitedOut = Date.now() - start >= NO_SIGNAL_READY_MS;
+      if (rendered && dwellOk && (signal || waitedOut)) return "ready";
+      await stepsDelay(POLL_MS);
+    }
+    return "timeout";
   }
 
   /** Type text into LLM, verify echo, retry with Ctrl+U clear if echo fails.
@@ -963,7 +1013,9 @@ export class TerminalGridPanel {
         if (recent.includes(text)) return true; // echo confirmed
         if (this._disposed) return false;
       }
-      // Echo not found — delete typed chars with backspaces and retry
+      // Echo not found. If a modal is up, never backspace into it — abort cleanly.
+      if (this._modalHit(this._screen(cellId))) return false;
+      // delete typed chars with backspaces and retry
       for (let j = 0; j < text.length; j++) pty.write("\x7f");
       await stepsDelay(300);
     }
@@ -971,34 +1023,90 @@ export class TerminalGridPanel {
   }
 
   private async _executeSteps(cellId: number, steps: StartupStep[], shellType: string): Promise<void> {
+    void shellType;
     if (!this._stepGeneration[cellId]) this._stepGeneration[cellId] = 0;
     const gen = ++this._stepGeneration[cellId];
+    const autoAccept = vscode.workspace.getConfiguration("terminalGrid").get<boolean>("autoAcceptTrust", true);
+    const live = (): boolean => !this._disposed && this._stepGeneration[cellId] === gen;
     let insideLlm = false;
-    for (let i = 0; i < steps.length; i++) {
-      if (this._disposed || this._stepGeneration[cellId] !== gen) return;
+
+    // Pre-step-0: let the freshly-spawned shell settle (print its prompt) before typing the launch
+    // command — instead of firing on the very first byte into a not-yet-ready shell.
+    this._stepWatermark[cellId] = (this._outputBuffers[cellId] || "").length;
+    await this._settle(cellId, Date.now() + 3000);
+
+    for (let i = 0; i < steps.length && live(); i++) {
       const step = steps[i];
-      if (step.type === "timeout") {
-        await stepsDelay(step.ms);
-      } else if (step.type === "command") {
-        if (i > 0) {
-          if (insideLlm) {
-            await this._waitForLlmPrompt(cellId);
-          } else if (steps[i - 1].type === "command") {
-            await stepsDelay(DEFAULT_STEP_DELAY);
-          }
+      if (step.type === "timeout") { await stepsDelay(step.ms); continue; }
+
+      // Gate before each command after the first.
+      if (i > 0 && insideLlm) {
+        this._stepWatermark[cellId] = (this._outputBuffers[cellId] || "").length;
+        const verdict = await this._waitForReady(cellId, autoAccept, gen);
+        if (!live()) return;
+        if (verdict !== "ready") {
+          TerminalGridPanel._getLog().appendLine(`[startup] cell ${cellId}: aborted (${verdict}) — not typing ${JSON.stringify(step.input)}.`);
+          return;  // modal held / never ready → never blind-type into a dialog
         }
-        if (this._disposed || this._stepGeneration[cellId] !== gen) return;
-        const eol = insideLlm ? LLM_ENTER : this._enterSeq(cellId);
-        if (insideLlm) {
-          await this._typeWithRetry(cellId, step.input);
-          this._terminals[cellId]?.pty.write(eol);
-        } else {
-          this._terminals[cellId]?.pty.write(step.input + eol);
-        }
-        if (isLlmCommand(step.input)) insideLlm = true;
-        if (step.input.trim() === "exit") insideLlm = false;
-        this._insideLlm[cellId] = insideLlm;
+      } else if (i > 0 && steps[i - 1].type === "command") {
+        await stepsDelay(DEFAULT_STEP_DELAY);  // legacy shell→shell spacing
       }
+      if (!live()) return;
+
+      if (insideLlm) {
+        // _waitForReady already confirmed a settled, non-modal, rendered screen; just guard against
+        // a modal that appeared in the gap before typing.
+        if (this._modalHit(this._screen(cellId))) {
+          TerminalGridPanel._getLog().appendLine(`[startup] cell ${cellId}: modal appeared — aborting ${JSON.stringify(step.input)}.`);
+          return;
+        }
+        const ok = await this._typeWithRetry(cellId, step.input);
+        if (!ok || !live()) return;            // echo unconfirmed → abort with NO stray Enter
+        this._terminals[cellId]?.pty.write(LLM_ENTER);
+      } else {
+        this._terminals[cellId]?.pty.write(step.input + this._enterSeq(cellId));
+      }
+      if (isLlmCommand(step.input)) insideLlm = true;
+      if (step.input.trim() === "exit") insideLlm = false;
+      this._insideLlm[cellId] = insideLlm;
+    }
+  }
+
+  /** Reset all per-cell runtime state for a (re)spawned cell. alreadyStarted=true for hidden cells. */
+  private _resetCellState(id: number, alreadyStarted = false): void {
+    this._insideLlm[id] = false;
+    this._csiUMode[id] = false;
+    this._altScreen[id] = false;
+    this._altDwellStart[id] = 0;
+    this._lastByteTs[id] = 0;
+    this._outputBuffers[id] = "";
+    this._stepWatermark[id] = 0;
+    this._startupSent[id] = alreadyStarted;
+  }
+
+  /** Single PTY data handler for every cell — tracks the settle clock, terminal mode (Kitty /
+   *  alt-screen), the output buffer + current-screen watermark, and triggers startup steps on first
+   *  output. Used by BOTH _createTerminals and _restartTerminal so the two paths can never drift. */
+  private _handlePtyData(id: number, data: string, steps: StartupStep[]): void {
+    if (this._disposed) return;
+    if (TerminalGridPanel.CSI_U_ENABLE.test(data)) this._csiUMode[id] = true;
+    if (TerminalGridPanel.CSI_U_DISABLE.test(data)) this._csiUMode[id] = false;
+    if (ALT_ENABLE.test(data)) { this._altScreen[id] = true; this._altDwellStart[id] = Date.now(); }
+    if (ALT_DISABLE.test(data)) this._altScreen[id] = false;
+    this._lastByteTs[id] = Date.now();
+    this._outputBuffers[id] = (this._outputBuffers[id] || "") + data;
+    if (this._outputBuffers[id].length > TerminalGridPanel.OUTPUT_BUFFER_SIZE) {
+      this._outputBuffers[id] = this._outputBuffers[id].slice(-TerminalGridPanel.OUTPUT_BUFFER_SIZE);
+    }
+    // A full clear or alt-screen toggle starts a fresh screen — advance the watermark so the
+    // readiness classifier reasons over the CURRENT screen, not concatenated past frames.
+    if (SCREEN_CLEAR.test(data) || ALT_ENABLE.test(data) || ALT_DISABLE.test(data)) {
+      this._stepWatermark[id] = this._outputBuffers[id].length;
+    }
+    this._panel.webview.postMessage({ type: "output", id, data });
+    if (!this._startupSent[id] && steps.length > 0) {
+      this._startupSent[id] = true;
+      void this._executeSteps(id, steps, this._cellShellType[id] || "");
     }
   }
 

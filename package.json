@@ -192,6 +192,11 @@
           "minimum": 0,
           "maximum": 65535,
           "description": "%config.apiPort%"
+        },
+        "terminalGrid.autoAcceptTrust": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a startup command launches an LLM CLI (claude, codex, …) that shows a \"trust this folder?\" dialog, automatically accept the default option so the next startup step runs. Disable to hold instead — the startup sequence aborts rather than typing into the dialog."
         }
       }
     }
