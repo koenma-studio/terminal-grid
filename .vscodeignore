@@ -1,4 +1,9 @@
 .vscode/**
+.claude/**
+.codex/**
+_linux-prebuild-output/**
+*.log
+.env*
 src/**
 scripts/**
 out/**
@@ -21,10 +26,14 @@ node_modules/**
 !node_modules/node-pty/prebuilds/**/*.dll
 !node_modules/node-pty/prebuilds/**/spawn-helper
 .gitignore
-tsconfig.json
+tsconfig*.json
 **/*.map
 **/*.test.js
 test-api.js
+test/**
+playwright.config.js
+test-results/**
+playwright-report/**
 111.png
 222.png
 1.png

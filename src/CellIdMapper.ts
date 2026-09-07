@@ -10,28 +10,37 @@ import { panelRegistry } from "./PanelRegistry";
  * unused ID, so an LLM that remembers a global ID can still hit the right
  * cell as long as the tab is open.
  *
- * Persistence: `nextGlobalCellId` in globalState.
+ * Persistence: `nextGlobalCellId` in workspaceState. IDs are scoped to one editor window's workspace.
  *
  * Resolution: walks panelRegistry asking each panel for its cellIds[] and
  * matching against the global ID. O(tabs × cells) but tab counts are small.
  */
 class CellIdMapperImpl {
   private static readonly KEY = "nextGlobalCellId";
+  private readonly _next = new WeakMap<vscode.Memento, number>();
 
   allocate(context: vscode.ExtensionContext, count: number): number[] {
-    const start = context.globalState.get<number>(CellIdMapperImpl.KEY, 0);
+    const start = this.peek(context);
     const ids: number[] = [];
     for (let i = 0; i < count; i++) ids.push(start + i);
-    void context.globalState.update(CellIdMapperImpl.KEY, start + count);
+    this._next.set(context.workspaceState, start + count);
+    void context.workspaceState.update(CellIdMapperImpl.KEY, start + count);
     return ids;
   }
 
   peek(context: vscode.ExtensionContext): number {
-    return context.globalState.get<number>(CellIdMapperImpl.KEY, 0);
+    return Math.max(this._next.get(context.workspaceState) ?? 0, context.workspaceState.get<number>(CellIdMapperImpl.KEY, 0));
+  }
+
+  reserve(context: vscode.ExtensionContext, ids: number[]): void {
+    const next = Math.max(this.peek(context), ...ids.map(id => id + 1));
+    this._next.set(context.workspaceState, next);
+    void context.workspaceState.update(CellIdMapperImpl.KEY, next);
   }
 
   reset(context: vscode.ExtensionContext): Thenable<void> {
-    return context.globalState.update(CellIdMapperImpl.KEY, 0);
+    this._next.set(context.workspaceState, 0);
+    return context.workspaceState.update(CellIdMapperImpl.KEY, 0);
   }
 
   /**

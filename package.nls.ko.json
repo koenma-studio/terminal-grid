@@ -19,6 +19,7 @@
   "command.resetCellIds": "Terminal Grid: 셀 ID 초기화 (모든 탭 닫힌 상태에서)",
   "command.resetAllTabs": "Terminal Grid: 모든 탭 초기화 (좀비 탭 정리)",
   "config.title": "Terminal Grid",
+  "config.scrollback": "셀마다 보관할 스크롤 기록의 행 수입니다. 자동 줄바꿈도 행을 사용하며, 전체 화면 CLI의 대체 화면은 스크롤 기록을 보관하지 않습니다.",
   "config.defaultRows": "기본 행 수",
   "config.defaultCols": "기본 열 수",
   "config.zoomPercent": "전역 터미널 폰트 줌 비율 (50–300%)",
@@ -27,5 +28,7 @@
   "config.foregroundColor": "터미널 전경색 오버라이드 (빈값 = IDE 테마)",
   "config.colorTheme": "터미널 컬러 테마 (빈값 = IDE 테마)",
   "config.shellType": "기본 쉘 타입 (빈값 = OS/환경에서 자동 감지)",
-  "config.apiPort": "MCP 브릿지 HTTP 포트 (0 = 비활성화). 재시작 필요."
+  "config.apiPort": "MCP 브릿지 HTTP 포트 (0 = 비활성화). 변경 즉시 적용됩니다.",
+  "config.startupReadyTimeout": "CLI 입력 준비를 기다리는 최대 시간(초)입니다. 시간이 지나면 시작 단계를 일시정지하며, 셀의 다시 확인 버튼으로 대기를 재개할 수 있습니다.",
+  "command.showDiagnostics": "Terminal Grid: 버전 및 MCP 상태"
 }

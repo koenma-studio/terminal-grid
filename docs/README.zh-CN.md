@@ -138,7 +138,7 @@ const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 
 
 MCP 桥接仅监听 `127.0.0.1` (默认端口 `7890`,可通过 `terminalGrid.apiPort` 修改)。不接受远程连接。
 
-在 Claude Desktop 中注册 MCP 服务器时,会写入指向打包的 `mcp-server.js` 的 `terminal-grid` 条目。卸载前请运行 **Terminal Grid: 从 Claude Desktop 取消注册 MCP** 进行清理。引用脚本不存在的过时注册(如旧版本残留)会在下次扩展加载时自动清除。
+现有 MCP 注册指向扩展存储中不依赖版本号的 `mcp-server.js`，失效路径会在扩展激活时修复。卸载前，请从已配置的客户端中移除 `terminal-grid`。Codex 用户可运行 `codex mcp remove terminal-grid`；现有 Claude Desktop 注册可从 `claude_desktop_config.json` 中移除。
 
 ## 要求
 

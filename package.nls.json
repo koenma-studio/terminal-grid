@@ -19,6 +19,7 @@
   "command.resetCellIds": "Terminal Grid: Reset Cell IDs (when all tabs closed)",
   "command.resetAllTabs": "Terminal Grid: Reset All Tabs (clear zombies)",
   "config.title": "Terminal Grid",
+  "config.scrollback": "Scrollback rows retained per cell. Soft-wrapped text uses multiple rows; full-screen alternate buffers do not retain scrollback.",
   "config.defaultRows": "Default number of rows",
   "config.defaultCols": "Default number of columns",
   "config.zoomPercent": "Global terminal font zoom percentage (50–300%)",
@@ -27,5 +28,7 @@
   "config.foregroundColor": "Terminal foreground color override (empty = follow IDE theme)",
   "config.colorTheme": "Terminal color theme (empty = follow IDE theme)",
   "config.shellType": "Default shell type (empty = auto-detect from OS/environment)",
-  "config.apiPort": "HTTP API port for MCP bridge (0 = disabled). Restart required."
+  "config.apiPort": "HTTP port for MCP bridge (0 = disabled). Changes take effect immediately.",
+  "config.startupReadyTimeout": "Seconds to wait for a CLI input prompt before pausing startup steps. Use Check again in the cell to resume waiting.",
+  "command.showDiagnostics": "Terminal Grid: Version and MCP Status"
 }

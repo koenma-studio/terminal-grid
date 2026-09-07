@@ -2,7 +2,7 @@
   "name": "terminal-grid",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.4.0",
+  "version": "0.7.0",
   "publisher": "koenma",
   "author": "koenma",
   "license": "MIT",
@@ -107,6 +107,10 @@
         "title": "%command.testAPI%"
       },
       {
+        "command": "terminalGrid.showDiagnostics",
+        "title": "%command.showDiagnostics%"
+      },
+      {
         "command": "terminalGrid.copyMcpConfig",
         "title": "%command.copyMcpConfig%"
       },
@@ -140,6 +144,13 @@
     "configuration": {
       "title": "%config.title%",
       "properties": {
+        "terminalGrid.scrollback": {
+          "type": "integer",
+          "default": 20000,
+          "minimum": 1000,
+          "maximum": 100000,
+          "description": "%config.scrollback%"
+        },
         "terminalGrid.defaultRows": {
           "type": "number",
           "default": 2,
@@ -197,6 +208,13 @@
           "type": "boolean",
           "default": true,
           "description": "When a startup command launches an LLM CLI (claude, codex, …) that shows a \"trust this folder?\" dialog, automatically accept the default option so the next startup step runs. Disable to hold instead — the startup sequence aborts rather than typing into the dialog."
+        },
+        "terminalGrid.startupReadyTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "maximum": 300,
+          "description": "%config.startupReadyTimeout%"
         }
       }
     }
@@ -204,17 +222,27 @@
   "scripts": {
     "compile": "tsc -p ./ && node scripts/build.js",
     "compile:ext": "tsc -p ./",
-    "compile:webview": "node scripts/build.js",
-    "watch": "tsc -watch -p ./"
+    "compile:webview": "node scripts/build-webview.js",
+    "watch": "tsc -watch -p ./",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.webview.json",
+    "test": "npm run typecheck && npm run compile && node --test test/*.test.js",
+    "test:clipboard": "playwright test",
+    "test:windows": "node scripts/check-windows.js",
+    "package": "npm run compile && npx --yes @vscode/vsce package",
+    "deploy": "npm run package && node scripts/install.js",
+    "install:local": "npm run deploy",
+    "verify:install": "node scripts/check-install.js"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^25.3.2",
     "@types/vscode": "^1.80.0",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/xterm": "^6.0.0",
-    "adm-zip": "^0.5.16",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.28.2",
+    "smol-toml": "^1.8.0",
     "typescript": "^5.3.0",
     "zod": "^4.4.3"
   },

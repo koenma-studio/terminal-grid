@@ -1,5 +1,78 @@
 # Changelog
 
+## [0.7.0] - 2026-09-07
+
+### Fixed
+- Hidden/collapsed layouts no longer shrink terminals to 2 columns. Returning to a completed response follows the bottom when appropriate, preserves the history being read, and retains an anchor across resize/reflow. Restart keeps the actual PTY dimensions.
+- Appearance changes preserve cell shell/startup settings. Tab layouts/settings and ID allocation are workspace scoped; restore uses saved panel identity instead of callback order and preserves legacy data during migration.
+- MCP submissions serialize entire input requests and report actual delivery or failure. Exited/restarted cells cancel pending input. Startup checks the full composer, including text to the right of the cursor, multiline input, styled hints and wide characters.
+- Copy keeps selections until clipboard success. Clipboard reads time out without submitting queued Enter; large pastes show progress and can be cancelled without submitting partial text.
+- Output uses parse acknowledgments and PTY backpressure during ordinary output as well as selection.
+
+### Added
+- Context-menu selection preview and scrollback search, copy and text-file export.
+- Version/MCP diagnostics showing running and last locally installed builds.
+- MCP `read_cell` defaults to the parsed current screen. `mode: "history"` explicitly selects raw output history; results include `output`, capture time, range, truncation and cell lifecycle status.
+- Per-cell zoom and grid proportions persist with the webview's tab identity.
+
+## [0.6.1] - 2026-09-07
+
+### Fixed
+- Mouse selections follow wheel scrolling, including reverse, wide-character and word selections. Removed scroll preservation code tied to xterm's obsolete viewport element.
+- Dragging temporarily holds that cell's output with PTY backpressure. Mouseup/blur resumes output and saves the selected text, so buffer trimming or CLI redraws cannot shorten subsequent keyboard, native or context-menu copies. A Copy saved selection button appears when output changes after selection.
+- Escape, typing, a new selection, clear and restart discard saved selections; restarting discards held output. Startup automation cannot use a screen held for selection.
+
+### Added
+- Configurable scrollback (`terminalGrid.scrollback`), defaulting to 20,000 rows per cell.
+
+## [0.6.0] - 2026-09-07
+
+### Added
+- CLI launch controls for Codex and Claude Code: new conversation, session picker, latest conversation or a specific session ID, with a command preview and optional CLI arguments.
+- Per-cell startup progress, pause, Check again and Cancel startup controls. A configurable readiness timeout defaults to 60 seconds; retry continues the pending step without restarting completed commands.
+- `npm run verify:install` checks live activation receipts against a durable deployment record written before Reload Window.
+
+### Fixed
+- Simple legacy CLI launch followed by `/resume` is compiled into a native resume command, preserving options and explicit delays without modifying saved settings.
+- Startup readiness uses xterm's parsed screen and cursor, requiring a stable empty input area. Elapsed time, keyboard protocol negotiation and busy footers no longer authorize input. Login/confirmation dialogs and session pickers hold subsequent commands.
+- Startup text is sent once and submitted only after confirming its contents in the composer. Failed confirmation, manual input, reset or cancellation cannot trigger blind backspaces, repeated typing or a stray Enter.
+
+## [0.5.1] - 2026-09-07
+
+### Changed
+- Removed the Claude Desktop MCP registration card from the sidebar, including its status checks and registration handlers. Existing MCP registrations and launcher repair remain supported.
+
+## [0.5.0] - 2026-09-07
+
+### Fixed
+- MCP `cellId` and `tabId` now match the UI: both start at 1 within the selected editor window/tab. Sparse internal cell IDs are translated by the server and no longer exposed as user-facing numbers. Existing MCP clients must refresh their tool schemas and grid information.
+- Multiple VS Code windows are discovered by project, process and listening port. A shared legacy `TERMINAL_GRID_PORT` setting no longer sends every project to the first window.
+
+### Added
+- `list_windows` and optional `windowId` / `workspace` / `tabId` tool parameters for explicit cross-project targeting. Ambiguous project matches return an error instead of guessing.
+- Grid terminals inherit their originating window ID. Modern bridges reject stale window identities after port reuse; Windows 0.4.1 sessions can be discovered through their actual listening process.
+- `npm run test:windows` performs read-only MCP checks against running editor windows. Automated tests cover UI numbering, multi-window routing and invalid/stale targets.
+
+## [0.4.1] - 2026-09-07
+
+### Fixed
+- Copy/paste shortcuts now cancel native duplicate handling and support Ctrl+Shift+C/V, Cmd+C/V and Shift+Insert. Text paste uses xterm's newline normalization and negotiated bracketed-paste mode.
+- Plain copy preserves the exact selection, including wrapped lines and wide characters. Clipboard access failures fall back to the extension host; image paste retains earlier attachments until the panel closes.
+- PTY writes are serialized so Enter and subsequent input cannot overtake a large paste; UTF-16 surrogate pairs remain intact and queued writes stop when a terminal closes.
+- Clipboard reads preserve input order even when asynchronous replies arrive out of order; late paste replies are discarded after a cell restarts.
+- Existing Codex MCP registrations are repaired to a stable path instead of deleted. The standalone server is refreshed by content, including rebuilds with the same version.
+- MCP cell IDs consistently use one-based global IDs; failed commands return tool errors. Bridge port fallback/configuration changes publish the actual listening port.
+- Startup readiness retains dialogs delivered alongside a screen clear, handles split escape sequences, cancels waits after restart and sends Kitty Enter only when the application enables it.
+- Extension shutdown preserves the tab snapshot needed for reload.
+
+### Changed
+- Compilation only builds artifacts. `npm run deploy` builds, packages, installs via the editor CLI and triggers Reload Window. A reload watcher records the activated version/build so deployment can be verified; old extension folders are managed by the editor.
+- Added HTTP/stdio, startup, configuration, PTY queue and Chromium clipboard regression tests, plus webview type checking.
+- Updated vulnerable dependencies and removed the unused ZIP extraction dependency.
+
+### Security
+- The local HTTP bridge rejects browser origins, unexpected Host headers, invalid JSON and oversized request bodies.
+
 ## [0.4.0] - 2026
 
 ### Added

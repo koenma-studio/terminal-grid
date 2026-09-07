@@ -138,7 +138,7 @@ const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 
 
 A ponte MCP escuta apenas em `127.0.0.1` (porta padrão `7890`, configurável via `terminalGrid.apiPort`). Não aceita conexões remotas.
 
-Ao registrar o servidor MCP no Claude Desktop, uma entrada `terminal-grid` apontando para o `mcp-server.js` embutido é gravada. Execute **Terminal Grid: Cancelar registro MCP no Claude Desktop** antes de desinstalar para limpar. Registros obsoletos (cujo script referenciado não existe mais) são removidos automaticamente no próximo carregamento da extensão.
+Os registros MCP existentes apontam para `mcp-server.js` no armazenamento da extensão independente da versão. Caminhos inválidos são corrigidos na ativação. Antes de desinstalar, remova `terminal-grid` dos clientes configurados. No Codex, execute `codex mcp remove terminal-grid`; registros existentes do Claude Desktop podem ser removidos de `claude_desktop_config.json`.
 
 ## Requisitos
 

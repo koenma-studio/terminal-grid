@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import * as fs from "fs";
+import * as path from "path";
 import * as os from "os";
+import * as http from "http";
+import { createHash } from "crypto";
+import { ReloadWatcher } from "./ReloadWatcher";
 import { SidebarProvider } from "./SidebarProvider";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { McpBridge } from "./McpBridge";
@@ -9,12 +12,16 @@ import { tabState } from "./TabStateStore";
 import type { CellOverride, MergeRegion } from "./TabStateStore";
 import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
 import { cellIdMapper } from "./CellIdMapper";
+import { TabRestorePlan } from "./TabRestorePlan";
 
 let mcpBridge: McpBridge | undefined;
 let mcpStatusItem: vscode.StatusBarItem | undefined;
+let deactivating = false;
+let reloadWatcher: ReloadWatcher | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  // Initialize per-tab state store + run one-shot migration of legacy keys → _0 namespace
+  deactivating = false;
+  // Tab layouts/settings belong to this workspace; keep shared presets/fonts global.
   tabState.init(context);
   await tabState.migrateOnce();
 
@@ -23,49 +30,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // extension update never leaves a dangling versioned path ("MCP server not connected" after update).
   SidebarProvider.ensureStableMcpScript(context);
   SidebarProvider.healMcpRegistrations(context);
-  // Codex support dropped: remove any dangling terminal-grid entry from ~/.codex/config.toml.
-  SidebarProvider.pruneCodexRegistration();
-  // Shared/committed workspace .mcp.json: remove the stale versioned terminal-grid entry.
-  SidebarProvider.pruneWorkspaceMcpJson();
+  SidebarProvider.healCodexRegistration(context);
 
-  // Bridge: legacy single-panel `lastGrid` → multi-tab `lastTabs[0]`.
-  // Without this, returning users hit the deserialize fallback path (which is the zombie-tab source).
-  const existingLastTabs = context.globalState.get<unknown[]>("lastTabs", []);
-  if (existingLastTabs.length === 0) {
-    const legacyLastGrid = context.globalState.get<{ rows: number; cols: number }>("lastGrid");
-    if (legacyLastGrid && legacyLastGrid.rows > 0 && legacyLastGrid.cols > 0) {
-      const cellCount = legacyLastGrid.rows * legacyLastGrid.cols;
-      const cellIds: number[] = [];
-      for (let i = 0; i < cellCount; i++) cellIds.push(i);
-      await context.globalState.update("lastTabs", [{
-        tabId: 0, rows: legacyLastGrid.rows, cols: legacyLastGrid.cols, cellIds,
-      }]);
-      // Advance counters past the bridged tab so new allocations don't collide
-      const curNextTab = context.globalState.get<number>("nextTabId", 0);
-      if (curNextTab < 1) await context.globalState.update("nextTabId", 1);
-      const curNextCell = context.globalState.get<number>("nextGlobalCellId", 0);
-      if (curNextCell < cellCount) await context.globalState.update("nextGlobalCellId", cellCount);
-    }
-  }
-
-  // Dev auto-reload: watch signal file touched by scripts/build.js
+  // Opt-in local deployment: npm run deploy installs the VSIX, then requests Reload Window.
   try {
-    const reloadDir = path.join(os.homedir(), ".terminal-grid");
-    const reloadFile = path.join(reloadDir, "reload-signal");
-    fs.mkdirSync(reloadDir, { recursive: true });
-    let lastMtime = fs.existsSync(reloadFile) ? fs.statSync(reloadFile).mtimeMs : 0;
-    const watcher = fs.watch(reloadDir, (_event, filename) => {
-      if (filename !== "reload-signal") return;
-      try {
-        const mtime = fs.statSync(reloadFile).mtimeMs;
-        if (mtime > lastMtime) {
-          lastMtime = mtime;
-          vscode.commands.executeCommand("workbench.action.reloadWindow");
-        }
-      } catch { /* file may be momentarily missing */ }
-    });
-    context.subscriptions.push({ dispose: () => watcher.close() });
-  } catch { /* watch may fail in restricted environments */ }
+    reloadWatcher = new ReloadWatcher(path.join(os.homedir(), ".terminal-grid"), {
+      version: String(context.extension.packageJSON.version),
+      buildHash: createHash("sha256").update(fs.readFileSync(path.join(context.extensionPath, "dist", "extension.js"))).digest("hex"),
+      workspaces: (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath),
+    }, () => vscode.commands.executeCommand("workbench.action.reloadWindow"));
+    context.subscriptions.push(reloadWatcher);
+  } catch (error) {
+    console.warn("Terminal Grid: deployment reload watcher unavailable:", error);
+  }
 
   // Auto-load preset for current workspace.
   // Multi-tab deferred pattern: allocate the next tabId, write per-tab preset state to that
@@ -99,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await cfg.update("colorTheme", preset.colorTheme || "", vscode.ConfigurationTarget.Global);
         await cfg.update("shellType", preset.shellType || "", vscode.ConfigurationTarget.Global);
         // 2. Allocate the tabId the first opened panel will use, then write per-tab state to it
-        const persistedTabs = context.globalState.get<unknown[]>("lastTabs", []);
+        const persistedTabs = tabState.getLastTabs();
         if (persistedTabs.length === 0) {
           const firstTabId = TabIdAllocator.next(context);
           await tabState.setStartupCommands(firstTabId, preset.startupCommands || []);
@@ -124,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
           await tabState.setMergedRegions(firstTabId, preset.mergedRegions || []);
           // Stash pending tabId so the first createOrShow call picks it up.
-          await context.globalState.update("pendingFirstTabId", firstTabId);
+          await context.workspaceState.update("pendingFirstTabId", firstTabId);
         }
       }
     }
@@ -133,38 +110,59 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Sidebar
   const sidebarProvider = new SidebarProvider(context);
 
-  // MCP HTTP Bridge
-  const apiPort = vscode.workspace
-    .getConfiguration("terminalGrid")
-    .get<number>("apiPort", 7890);
-  if (apiPort > 0) {
-    mcpBridge = new McpBridge(apiPort);
-    mcpBridge
-      .start()
-      .then((port) => {
-        mcpStatusItem = vscode.window.createStatusBarItem(
-          vscode.StatusBarAlignment.Right,
-          50
-        );
-        mcpStatusItem.text = `$(broadcast) TG :${port}`;
-        mcpStatusItem.tooltip = vscode.l10n.t("Terminal Grid API active on port {0}", port);
-        mcpStatusItem.command = "terminalGrid.copyMcpConfig";
+  // Publish only the port that actually bound (it may differ after EADDRINUSE).
+  const didChangeMcp = new vscode.EventEmitter<void>();
+  context.subscriptions.push(didChangeMcp);
+  let currentPort = 0;
+  mcpStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
+  mcpStatusItem.command = "terminalGrid.showDiagnostics";
+  context.subscriptions.push(mcpStatusItem);
+  const restartBridge = async (): Promise<void> => {
+    if (deactivating) return;
+    currentPort = 0;
+    reloadWatcher?.setPort(0);
+    sidebarProvider.setMcpPort(0);
+    mcpStatusItem?.hide();
+    didChangeMcp.fire();
+    await mcpBridge?.stop();
+    mcpBridge = undefined;
+    if (deactivating) return;
+    const requestedPort = vscode.workspace.getConfiguration("terminalGrid").get<number>("apiPort", 7890);
+    if (requestedPort <= 0) return;
+    const windowId = reloadWatcher?.windowId || `${process.pid}-${Date.now()}`;
+    const bridge = new McpBridge(requestedPort, {
+      windowId, workspaces: (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath),
+      pid: process.pid, version: String(context.extension.packageJSON.version),
+    });
+    mcpBridge = bridge;
+    try {
+      currentPort = await bridge.start();
+      reloadWatcher?.setPort(currentPort);
+      TerminalGridPanel.setMcpEnvironment(windowId, currentPort);
+      context.environmentVariableCollection.persistent = false;
+      context.environmentVariableCollection.replace("TERMINAL_GRID_WINDOW_ID", windowId);
+      if (mcpStatusItem) {
+        mcpStatusItem.text = "$(broadcast) TG :" + currentPort;
+        mcpStatusItem.tooltip = vscode.l10n.t("Terminal Grid API active on port {0}", currentPort);
         mcpStatusItem.show();
-        context.subscriptions.push(mcpStatusItem);
-        sidebarProvider.setMcpPort(port);
-      })
-      .catch((err) => {
-        vscode.window.showWarningMessage(
-          vscode.l10n.t("Terminal Grid API bridge failed to start: {0}", err.message)
-        );
-      });
-  }
+      }
+      sidebarProvider.setMcpPort(currentPort);
+      didChangeMcp.fire();
+    } catch (err) {
+      await bridge.stop();
+      mcpBridge = undefined;
+      void vscode.window.showWarningMessage(vscode.l10n.t("Terminal Grid API bridge failed to start: {0}", err instanceof Error ? err.message : String(err)));
+    }
+  };
+  let bridgeTask = restartBridge();
+  await bridgeTask;
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration("terminalGrid.apiPort")) bridgeTask = bridgeTask.then(restartBridge);
+  }));
 
   // VS Code Copilot MCP registration (VS Code 1.99+)
   const lm = vscode.lm as Record<string, unknown> | undefined;
   if (typeof lm?.registerMcpServerDefinitionProvider === "function") {
-    const didChange = new vscode.EventEmitter<void>();
-    let currentPort = apiPort;
     const register = lm.registerMcpServerDefinitionProvider as (
       id: string,
       provider: {
@@ -174,7 +172,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ) => vscode.Disposable;
     context.subscriptions.push(
       register("terminalGrid", {
-        onDidChangeMcpServerDefinitions: didChange.event,
+        onDidChangeMcpServerDefinitions: didChangeMcp.event,
         provideMcpServerDefinitions: async () => {
           if (currentPort <= 0) return [];
           const McpStdio = (vscode as Record<string, unknown>).McpStdioServerDefinition as
@@ -185,25 +183,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
               "Terminal Grid",
               "node",
               [SidebarProvider.ensureStableMcpScript(context)],
-              { TERMINAL_GRID_PORT: String(currentPort) },
+              { TERMINAL_GRID_WINDOW_ID: reloadWatcher?.windowId || "" },
               context.extension.packageJSON.version
             ),
           ];
         },
-      }),
-      didChange
-    );
-    // Expose port updater so config change listener can fire didChange
-    context.subscriptions.push(
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("terminalGrid.apiPort")) {
-          currentPort = vscode.workspace
-            .getConfiguration("terminalGrid")
-            .get<number>("apiPort", 7890);
-          didChange.fire();
-        }
       })
     );
+
   }
 
   context.subscriptions.push(
@@ -220,14 +207,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
-  // Restore grid panel(s) on VS Code restart — multi-tab aware.
-  // VS Code calls deserializeWebviewPanel once per persisted panel; we consume
-  // lastTabs[] in order. Any extra panels beyond lastTabs are zombies (stale
-  // VS Code workbench state) and get disposed immediately.
-  const lastTabsSnapshot = context.globalState.get<Array<{
-    tabId: number; rows: number; cols: number; cellIds: number[];
-  }>>("lastTabs", []);
-  let deserializeIndex = 0;
+  // VS Code can deserialize tabs in any order. The webview's saved tabId is its
+  // identity; a legacy panel without one is recreated from the saved layout.
+  const restorePlan = new TabRestorePlan(tabState.beginRestore());
   let selfHealRan = false;
   let firstDeserializeFired = false;
 
@@ -239,55 +221,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (selfHealRan) return;
     selfHealRan = true;
 
-    if (panelRegistry.size() > 0) {
-      TerminalGridPanel.persistTabs(context);
-    }
-
-    const registered = new Set(panelRegistry.entries().map(([tid]) => tid));
-    const missing = lastTabsSnapshot.filter((t) => !registered.has(t.tabId));
+    if (deactivating) return;
+    const active = panelRegistry.getActiveTabId();
+    const missing = restorePlan.missing(panelRegistry.entries().map(([tid]) => tid));
 
     if (missing.length > 0) {
-      // VS Code is still holding shells for the hidden tabs. Close those shells so our
-      // re-created panels don't duplicate. Keep the active one — it's our deserialized panel.
-      const tabsToClose: vscode.Tab[] = [];
-      for (const group of vscode.window.tabGroups.all) {
-        for (const tab of group.tabs) {
-          if (tab.input instanceof vscode.TabInputWebview) {
-            const vt = (tab.input as { viewType?: string }).viewType || "";
-            if ((vt === "terminalGrid" || vt.endsWith("-terminalGrid")) && !tab.isActive) {
-              tabsToClose.push(tab);
-            }
-          }
-        }
-      }
-      if (tabsToClose.length > 0) {
-        try { await vscode.window.tabGroups.close(tabsToClose); } catch { /* ignore */ }
-      }
-      // Re-create missing panels in lastTabs order. Side effect: the last-created becomes active.
+      // Do not close unidentified hidden editors: some are already restored live
+      // terminals. Late placeholder deserializations are discarded by ID below.
       for (const entry of missing) {
+        if (panelRegistry.has(entry.tabId)) continue;
         TerminalGridPanel.createOrShow(context, entry.rows, entry.cols, {
           forceNewTab: true,
+          preserveFocus: true,
           tabIdOverride: entry.tabId,
           cellIdsOverride: entry.cellIds,
         });
       }
-    } else if (panelRegistry.size() === 0) {
-      // No panels deserialized at all — wipe any stale lastTabs so next restart is clean
-      const cur = context.globalState.get<unknown[]>("lastTabs", []);
-      if (cur.length > 0) {
-        void context.globalState.update("lastTabs", undefined);
-        void context.globalState.update("lastGrid", undefined);
-      }
     }
+    panelRegistry.reorder(restorePlan.tabs.map(tab => tab.tabId));
+    if (active !== undefined) panelRegistry.setActive(active);
+    tabState.finishRestore();
+    TerminalGridPanel.persistTabs(context);
   };
 
   context.subscriptions.push(
     vscode.window.registerWebviewPanelSerializer("terminalGrid", {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown) {
-        if (deserializeIndex < lastTabsSnapshot.length) {
-          const entry = lastTabsSnapshot[deserializeIndex++];
+      async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: unknown) {
+        const entry = restorePlan.claim(state);
+        if (entry && !panelRegistry.has(entry.tabId)) {
           TerminalGridPanel.revive(panel, context, entry.rows, entry.cols, entry.tabId, entry.cellIds);
+          panelRegistry.reorder(restorePlan.tabs.map(tab => tab.tabId));
         } else {
           // No matching entry in lastTabs → zombie. Dispose to avoid orphaned panels.
           panel.dispose();
@@ -307,6 +270,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Commands
   context.subscriptions.push(
+    vscode.commands.registerCommand("terminalGrid.showDiagnostics", async () => {
+      const runningVersion = String(context.extension.packageJSON.version);
+      let installedVersion = vscode.l10n.t("Unknown (no local installation receipt)");
+      let reloadNeeded = false;
+      try {
+        const receipt = JSON.parse(await fs.promises.readFile(path.join(os.homedir(), ".terminal-grid", "deployment.json"), "utf8"));
+        installedVersion = String(receipt.version);
+        const runningHash = createHash("sha256").update(await fs.promises.readFile(path.join(context.extensionPath, "dist", "extension.js"))).digest("hex");
+        reloadNeeded = runningVersion !== receipt.version || runningHash !== receipt.buildHash;
+      } catch { /* Marketplace installs need not have a local deployment receipt. */ }
+      const port = currentPort;
+      const bridgeState = port > 0 ? await new Promise<string>(resolve => {
+        const request = http.get({ hostname: "127.0.0.1", port, path: "/api/health", timeout: 1500,
+          headers: { "X-Terminal-Grid-Window": reloadWatcher?.windowId || "" } }, response => {
+          response.resume();
+          resolve(response.statusCode === 200 ? vscode.l10n.t("Connected on port {0}", port) : vscode.l10n.t("Connection failed (HTTP {0})", response.statusCode || 0));
+        });
+        request.on("timeout", () => request.destroy(new Error("timeout")));
+        request.on("error", () => resolve(vscode.l10n.t("Connection failed on port {0}", port)));
+      }) : vscode.l10n.t("Disabled or unavailable");
+      const detail = [
+        vscode.l10n.t("Running version: {0}", runningVersion),
+        vscode.l10n.t("Last local installation: {0}", installedVersion),
+        reloadNeeded ? vscode.l10n.t("Reload Window is needed to use the installed build.") : "",
+        vscode.l10n.t("Terminal Grid MCP: {0}", bridgeState),
+        vscode.l10n.t("Workspace: {0}", (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath).join(", ") || vscode.l10n.t("Empty window")),
+        vscode.l10n.t("Open grid tabs: {0}", panelRegistry.size()),
+        "",
+        vscode.l10n.t("CLI authentication is managed by Codex or Claude. A codex_apps 401 token_expired error requires signing in again in that CLI; the local Terminal Grid MCP connection does not refresh that token."),
+      ].filter(line => line !== "").join("\n");
+      await vscode.window.showInformationMessage(vscode.l10n.t("Terminal Grid status"), { modal: true, detail });
+    }),
     vscode.commands.registerCommand("terminalGrid.openGrid", () => {
       const config = vscode.workspace.getConfiguration("terminalGrid");
       const rows = config.get<number>("defaultRows", 2);
@@ -381,12 +376,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.l10n.t("Reset")
       );
       if (confirm !== vscode.l10n.t("Reset")) return;
+      selfHealRan = true;
+      restorePlan.cancel();
+      tabState.finishRestore();
       panelRegistry.disposeAll();
       await cellIdMapper.reset(context);
       await TabIdAllocator.reset(context);
-      await context.globalState.update("lastTabs", undefined);
-      await context.globalState.update("lastGrid", undefined);
-      await context.globalState.update("pendingFirstTabId", undefined);
+      await tabState.setLastTabs([]);
+      await context.workspaceState.update("lastGrid", undefined);
+      await context.workspaceState.update("pendingFirstTabId", undefined);
       vscode.window.showInformationMessage(
         vscode.l10n.t("All Terminal Grid tabs and persisted state reset.")
       );
@@ -538,20 +536,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.window.showWarningMessage(vscode.l10n.t("Terminal Grid API: {0} test(s) failed. See output.", failed));
       }
     }),
-// Copy MCP configuration to clipboard
-    vscode.commands.registerCommand("terminalGrid.copyMcpConfig", () => {
-      const port = mcpBridge?.getPort() ?? 7890;
+    // Copy MCP configuration to clipboard
+    vscode.commands.registerCommand("terminalGrid.copyMcpConfig", async () => {
+      if (currentPort <= 0) {
+        void vscode.window.showWarningMessage(vscode.l10n.t("Terminal Grid API bridge is disabled or not ready."));
+        return;
+      }
+      const port = currentPort;
       const mcpServerPath = SidebarProvider.ensureStableMcpScript(context);
       const config = {
         mcpServers: {
           "terminal-grid": {
             command: "node",
             args: [mcpServerPath],
-            env: { TERMINAL_GRID_PORT: String(port) },
+            env: {},
           },
         },
       };
-      vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));
+      await vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));
       vscode.window.showInformationMessage(
         vscode.l10n.t("Terminal Grid MCP config copied to clipboard (port {0})", port)
       );
@@ -560,7 +562,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export function deactivate(): void {
-  mcpBridge?.stop();
+  deactivating = true;
+  void mcpBridge?.stop();
   mcpBridge = undefined;
-  panelRegistry.disposeAll();
+  panelRegistry.disposeAll(true);
 }

@@ -14,3 +14,5 @@ logo-1024.png
 *.ttf
 *.mp4
 *.stackdump
+test-results/
+playwright-report/

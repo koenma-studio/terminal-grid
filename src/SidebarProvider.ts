@@ -3,11 +3,13 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as cp from "child_process";
+import { copyMcpScript, healCodexConfig } from "./McpConfig";
+import { buildLaunchCommand } from "./StartupLaunch";
 import { TerminalGridPanel } from "./TerminalGridPanel";
 import { THEME_NAMES, resolveThemeColors } from "./themes";
 import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
-import { tabState } from "./TabStateStore";
-import type { CellOverride } from "./TabStateStore";
+import { APPEARANCE_KEYS, clearCellAppearance, tabState } from "./TabStateStore";
+import type { AppearanceKey, CellOverride } from "./TabStateStore";
 
 interface CustomFont {
   name: string;
@@ -82,6 +84,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await vscode.commands.executeCommand(
             "workbench.action.reloadWindow"
           );
+          break;
+        case "showDiagnostics":
+          await vscode.commands.executeCommand("terminalGrid.showDiagnostics");
           break;
         case "setConfig": {
           const cfg = vscode.workspace.getConfiguration("terminalGrid");
@@ -167,6 +172,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         // ── Sequential startup steps ──
         case "addStep": {
+          if (msg.launch) {
+            try { msg.step = { type: "command", input: buildLaunchCommand(msg.launch) }; }
+            catch (error) {
+              void vscode.window.showWarningMessage(String(error));
+              break;
+            }
+          }
           if (msg.target === "all") {
             const steps = tabState.getDefaultSteps(this._tid) as {type: string; input?: string; ms?: number}[];
             steps.push(msg.step);
@@ -417,12 +429,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         // ── Per-cell config ──
         case "setCellConfig": {
-          const overrides = tabState.getCellOverrides(this._tid) as Record<number, {bgColor?: string; fgColor?: string; fontFamily?: string; themeName?: string; shellType?: string}>;
-          overrides[msg.cellId] = { bgColor: msg.bgColor || "", fgColor: msg.fgColor || "", fontFamily: msg.fontFamily || "", themeName: msg.themeName || "", shellType: (overrides[msg.cellId]?.shellType || "") };
-          await tabState.setCellOverrides(this._tid, overrides as Record<number, CellOverride>);
-          if (TerminalGridPanel.currentPanel) {
+          const tabId = this._tid;
+          const panel = panelRegistry.get(tabId);
+          const overrides = { ...tabState.getCellOverrides(tabId) };
+          overrides[msg.cellId] = { ...overrides[msg.cellId], bgColor: msg.bgColor || "", fgColor: msg.fgColor || "", fontFamily: msg.fontFamily || "", themeName: msg.themeName || "" };
+          await tabState.setCellOverrides(tabId, overrides);
+          if (panel) {
             const tc = msg.themeName ? resolveThemeColors(msg.themeName) : null;
-            TerminalGridPanel.currentPanel.sendCellConfig(msg.cellId, msg.bgColor || "", msg.fgColor || "", msg.fontFamily || "", msg.themeName || "", tc);
+            panel.sendCellConfig(msg.cellId, msg.bgColor || "", msg.fgColor || "", msg.fontFamily || "", msg.themeName || "", tc);
           }
           break;
         }
@@ -458,9 +472,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         }
         case "clearAllCellOverrides": {
-          await tabState.setCellOverrides(this._tid, {});
-          if (TerminalGridPanel.currentPanel) {
-            TerminalGridPanel.currentPanel.clearCellOverrides();
+          const tabId = this._tid;
+          const panel = panelRegistry.get(tabId);
+          const fields = Array.isArray(msg.fields)
+            ? msg.fields.filter((field: unknown): field is AppearanceKey => APPEARANCE_KEYS.includes(field as AppearanceKey))
+            : APPEARANCE_KEYS;
+          const overrides = clearCellAppearance(tabState.getCellOverrides(tabId), fields);
+          await tabState.setCellOverrides(tabId, overrides);
+          if (panel) {
+            for (let id = 0; id < panel.getCellCount(); id++) {
+              const cell = overrides[id] ?? {};
+              panel.sendCellConfig(id, cell.bgColor || "", cell.fgColor || "", cell.fontFamily || "", cell.themeName || "", cell.themeName ? resolveThemeColors(cell.themeName) : null);
+            }
           }
           break;
         }
@@ -522,22 +545,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         case "saveSectionStates": {
           await this._context.globalState.update("sectionStates", msg.states);
-          break;
-        }
-        // ── MCP Registration ──
-        case "registerMcpDesktop": {
-          const result = await this._registerMcpInConfig("desktop");
-          this._view?.webview.postMessage({ type: "mcpRegisterResult", target: "desktop", ...result });
-          break;
-        }
-        case "checkMcpRegistration": {
-          const status = this._checkMcpRegistration();
-          this._view?.webview.postMessage({ type: "mcpRegistrationStatus", ...status });
-          break;
-        }
-        case "unregisterMcpDesktop": {
-          const result = await this._unregisterMcpInConfig("desktop");
-          this._view?.webview.postMessage({ type: "mcpUnregisterResult", target: "desktop", ...result });
           break;
         }
         // ── Tab management ──
@@ -701,10 +708,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _getClaudeDesktopConfigPath(): string {
-    return SidebarProvider._claudeDesktopConfigPath();
-  }
-
   /** OS-specific path to Claude Desktop's config file. */
   private static _claudeDesktopConfigPath(): string {
     const platform = process.platform;
@@ -738,17 +741,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     try {
       const dest = SidebarProvider._stableMcpDest(context);
       if (fs.existsSync(src)) {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        // Refresh the copy on version change — deterministic, immune to backdated/normalized VSIX
-        // mtimes (mtime comparison can miss a content change when zip timestamps are normalized).
-        const marker = dest + ".version";
-        const version = String(context.extension?.packageJSON?.version ?? "");
-        let stamped = "";
-        try { stamped = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : ""; } catch { /* ignore */ }
-        if (!fs.existsSync(dest) || stamped !== version) {
-          fs.copyFileSync(src, dest);
-          try { fs.writeFileSync(marker, version); } catch { /* best-effort */ }
-        }
+        copyMcpScript(src, dest);
       }
       if (fs.existsSync(dest)) return dest.replace(/\\/g, "/");
     } catch { /* fall through to bundled-script fallback */ }
@@ -786,9 +779,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       path.join(os.homedir(), ".claude.json"),     // Claude Code (root + per-project mcpServers)
       SidebarProvider._claudeDesktopConfigPath(),   // Claude Desktop
     ];
-    // NOTE: workspace .mcp.json is handled by pruneWorkspaceMcpJson() instead — it is a
-    // shared/committed project file, so we REMOVE the stale versioned entry there rather than
-    // repoint it to a machine-specific absolute path (which would break teammates / dirty the repo).
+    // Shared workspace MCP files are left under the project's control.
 
     for (const cfgPath of configPaths) {
       try {
@@ -838,180 +829,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  /**
-   * Codex support has been dropped (no longer tested/maintained). Rather than carry an untested TOML
-   * integration, remove any DANGLING terminal-grid registration (broken or versioned-install path)
-   * from ~/.codex/config.toml so updaters stop seeing "MCP server not connected" there. Removes both
-   * the [mcp_servers.terminal-grid] table and its [mcp_servers.terminal-grid.env] subtable. Leaves a
-   * working, deliberately-set custom entry alone. Atomic write + optimistic-concurrency guard.
-   * Best-effort; never throws.
-   */
-  public static pruneCodexRegistration(): void {
-    const cfgPath = path.join(os.homedir(), ".codex", "config.toml");
+  /** Repair an existing registration; never remove Codex support during activation. */
+  public static healCodexRegistration(context: vscode.ExtensionContext): void {
     try {
-      if (!fs.existsSync(cfgPath)) return;
-      const rawBefore = fs.readFileSync(cfgPath, "utf-8");
-      if (!rawBefore.includes("[mcp_servers.terminal-grid]")) return;
-      const eol = rawBefore.includes("\r\n") ? "\r\n" : "\n";
-
-      // Bracket-depth-aware TOML table tokenizer: a header is only recognized at depth 0, so a
-      // multi-line array / inline-table value (whose continuation lines may start with '[') inside a
-      // table never splits it. Each block = a header line + its body (block 0 = preamble).
-      const stripStrings = (l: string): string => l.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, "");
-      const headerName = (l: string): string | null => {
-        const m = /^\s*\[\[?([^[\]]+)\]\]?\s*(?:#.*)?$/.exec(l);
-        return m ? m[1].trim() : null;
-      };
-      const blocks: Array<{ name: string | null; lines: string[] }> = [{ name: null, lines: [] }];
-      let depth = 0;
-      for (const line of rawBefore.split(/\r?\n/)) {
-        const name = depth === 0 ? headerName(line) : null;
-        if (name !== null) blocks.push({ name, lines: [line] });
-        else blocks[blocks.length - 1].lines.push(line);
-        for (const ch of stripStrings(line)) {
-          if (ch === "[" || ch === "{") depth++;
-          else if (ch === "]" || ch === "}") depth = Math.max(0, depth - 1);
-        }
-      }
-
-      const isTg = (name: string | null): boolean =>
-        name === "mcp_servers.terminal-grid" || (name?.startsWith("mcp_servers.terminal-grid.") ?? false);
-
-      // Decide from the MAIN tg table's OWN args only (bounded — never borrow a sibling table's path).
-      const mainTg = blocks.find((b) => b.name === "mcp_servers.terminal-grid");
-      const argMatch = mainTg ? /args\s*=\s*\[\s*"((?:[^"\\]|\\.)*)"/.exec(mainTg.lines.join("\n")) : null;
-      const argPath = argMatch ? argMatch[1].replace(/\\\\/g, "\\") : "";
-      const broken = !!argPath && !fs.existsSync(argPath);
-      const versioned = /[\\/]extensions[\\/]koenma\.terminal-grid-\d/.test(argPath);
-      if (!argPath || (!broken && !versioned)) return;
-
-      const updated = blocks.filter((b) => !isTg(b.name)).flatMap((b) => b.lines).join(eol).replace(/^(?:\r?\n)+/, "");
-      if (updated === rawBefore) return;
-
-      const tmp = `${cfgPath}.tg-tmp.${process.pid}.${Date.now()}`;
-      try {
-        fs.writeFileSync(tmp, updated, "utf-8");
-        if (fs.readFileSync(cfgPath, "utf-8") === rawBefore) fs.renameSync(tmp, cfgPath);
-      } finally {
-        try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
-      }
-    } catch { /* malformed/locked config — leave it untouched */ }
-  }
-
-  /**
-   * Workspace `.mcp.json` is a shared/committed project file, so (unlike user-level configs) we do
-   * NOT repoint terminal-grid to a machine-specific absolute path — that would break teammates and
-   * dirty the repo. Instead remove the stale v0.3.7 artifact: a terminal-grid entry whose arg is a
-   * versioned extension-install path. A deliberately-set relative/custom project path is left alone.
-   * Atomic write + optimistic-concurrency guard; preserves indent + trailing newline. Never throws.
-   */
-  public static pruneWorkspaceMcpJson(): void {
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-      const cfgPath = path.join(folder.uri.fsPath, ".mcp.json");
-      try {
-        if (!fs.existsSync(cfgPath)) continue;
-        const rawBefore = fs.readFileSync(cfgPath, "utf-8");
-        const config = JSON.parse(rawBefore) as { mcpServers?: Record<string, { args?: unknown }> };
-        const args = config.mcpServers?.["terminal-grid"]?.args;
-        if (!Array.isArray(args)) continue;
-        const isArtifact = args.some((a) => typeof a === "string" && /[\\/]extensions[\\/]koenma\.terminal-grid-\d/.test(a));
-        if (!isArtifact) continue;
-
-        delete config.mcpServers!["terminal-grid"];
-        const indentMatch = /\n([ \t]+)\S/.exec(rawBefore);
-        const indent: string | number = indentMatch ? indentMatch[1] : 2;
-        let out = JSON.stringify(config, null, indent);
-        if (rawBefore.endsWith("\n")) out += "\n";
-
-        const tmp = `${cfgPath}.tg-tmp.${process.pid}.${Date.now()}`;
-        try {
-          fs.writeFileSync(tmp, out, "utf-8");
-          if (fs.readFileSync(cfgPath, "utf-8") === rawBefore) fs.renameSync(tmp, cfgPath);
-        } finally {
-          try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
-        }
-      } catch { /* malformed/locked config — leave it untouched */ }
-    }
-  }
-
-  private _getMcpServerEntry(): { command: string; args: string[]; env: Record<string, string> } {
-    const port = this._mcpPort || vscode.workspace.getConfiguration("terminalGrid").get<number>("apiPort", 7890);
-    return {
-      command: "node",
-      args: [SidebarProvider.ensureStableMcpScript(this._context)],
-      env: { TERMINAL_GRID_PORT: String(port) },
-    };
-  }
-
-  private _checkMcpRegistration(): { desktop: boolean } {
-    const desktopPath = this._getClaudeDesktopConfigPath();
-    let desktopRegistered = false;
-    try {
-      if (fs.existsSync(desktopPath)) {
-        const raw = fs.readFileSync(desktopPath, "utf-8");
-        const config = JSON.parse(raw);
-        desktopRegistered = !!config?.mcpServers?.["terminal-grid"];
-      }
-    } catch { /* ignore */ }
-    return { desktop: desktopRegistered };
-  }
-
-  private async _registerMcpInConfig(target: "desktop"): Promise<{ success: boolean; message: string }> {
-    const configPath = this._getClaudeDesktopConfigPath();
-    const entry = this._getMcpServerEntry();
-
-    try {
-      const dir = path.dirname(configPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      let config: Record<string, unknown> = {};
-      if (fs.existsSync(configPath)) {
-        const raw = fs.readFileSync(configPath, "utf-8");
-        config = JSON.parse(raw);
-      }
-
-      if (!config.mcpServers) {
-        config.mcpServers = {};
-      }
-      (config.mcpServers as Record<string, unknown>)["terminal-grid"] = entry;
-
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
-
-      vscode.window.showInformationMessage(
-        vscode.l10n.t("Terminal Grid MCP server registered in Claude Desktop. Restart Claude Desktop to activate.")
-      );
-      return { success: true, message: "registered" };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      vscode.window.showErrorMessage(vscode.l10n.t("Failed to register MCP server: {0}", message));
-      return { success: false, message };
-    }
-  }
-
-  private async _unregisterMcpInConfig(target: "desktop"): Promise<{ success: boolean; message: string }> {
-    const configPath = this._getClaudeDesktopConfigPath();
-
-    try {
-      if (!fs.existsSync(configPath)) {
-        return { success: true, message: "not-registered" };
-      }
-      const raw = fs.readFileSync(configPath, "utf-8");
-      const config = JSON.parse(raw) as Record<string, unknown>;
-      const servers = config.mcpServers as Record<string, unknown> | undefined;
-      if (servers && "terminal-grid" in servers) {
-        delete servers["terminal-grid"];
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), "utf-8");
-      }
-      vscode.window.showInformationMessage(
-        vscode.l10n.t("Terminal Grid MCP server unregistered from Claude Desktop. Restart Claude Desktop to apply.")
-      );
-      return { success: true, message: "unregistered" };
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      vscode.window.showErrorMessage(vscode.l10n.t("Failed to unregister MCP server: {0}", message));
-      return { success: false, message };
+      const configPath = path.join(process.env.CODEX_HOME || path.join(os.homedir(), ".codex"), "config.toml");
+      healCodexConfig(configPath, SidebarProvider.ensureStableMcpScript(context));
+    } catch (error) {
+      console.warn("Terminal Grid: could not repair Codex MCP configuration:", error);
     }
   }
 
@@ -1672,6 +1496,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         <div id="mcpPortInfo" style="font-size: 11px; opacity: 0.7; margin-bottom: 8px; display: ${this._mcpPort > 0 ? 'block' : 'none'};">
           MCP Port: <span id="mcpPortValue">${this._mcpPort}</span>
         </div>
+        <button class="glass-btn" id="diagnosticsBtn" style="font-size:11px;padding:6px 10px;margin-bottom:8px">${vscode.l10n.t("Version and MCP status")}</button>
         <div id="projectList" class="cmd-list"></div>
         <div class="btn-group" style="gap: 6px;">
           <button class="glass-btn" id="addCurrentProjectBtn" style="font-size: 11px; padding: 8px 10px;">
@@ -1741,25 +1566,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         </div>
         <button class="glass-btn primary" id="openGridBtn">
           <span class="btn-icon">&#9654;</span> ${vscode.l10n.t("Open Grid")}
-        </button>
-      </div>
-    </div>
-
-    <div class="glass-card collapsed" data-section="mcpRegister">
-      <div class="section-header collapsible">
-        <div class="section-label">${vscode.l10n.t("MCP Registration")}</div>
-        <span class="tip-wrap">
-          <span class="tip-icon">?</span>
-          <div class="tip-bubble">
-            ${vscode.l10n.t("Register the Terminal Grid MCP server in Claude Desktop so it can control your terminal grid. This writes the server config to Claude Desktop's configuration file.")}
-          </div>
-        </span>
-        <span class="collapse-icon">\u25BE</span>
-      </div>
-      <div class="section-body">
-        <div id="mcpRegStatus" style="font-size: 11px; opacity: .6; margin-bottom: 10px;"></div>
-        <button class="glass-btn" id="registerMcpDesktopBtn">
-          <span class="btn-icon">&#9889;</span> ${vscode.l10n.t("Register in Claude Desktop")}
         </button>
       </div>
     </div>
@@ -1861,6 +1667,30 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           </div>
         </div>
         <div class="setting-row">
+          <span class="setting-label">${vscode.l10n.t("CLI launch")}</span>
+          <select class="glass-select" id="launchCli" aria-label="${vscode.l10n.t("CLI launch")}">
+            <option value="codex">Codex</option><option value="claude">Claude Code</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">${vscode.l10n.t("Launch mode")}</span>
+          <select class="glass-select" id="launchMode" aria-label="${vscode.l10n.t("Launch mode")}">
+            <option value="new">${vscode.l10n.t("New conversation")}</option>
+            <option value="picker">${vscode.l10n.t("Choose a session")}</option>
+            <option value="last">${vscode.l10n.t("Continue latest")}</option>
+            <option value="session">${vscode.l10n.t("Specific session")}</option>
+          </select>
+        </div>
+        <div class="cmd-add-row" id="launchSessionRow" style="display:none">
+          <input class="glass-input" id="launchSession" placeholder="${vscode.l10n.t("Session ID")}" aria-label="${vscode.l10n.t("Session ID")}" style="width:100%" />
+        </div>
+        <div class="cmd-add-row">
+          <input class="glass-input" id="launchOptions" placeholder="${vscode.l10n.t("CLI options (optional)")}" aria-label="${vscode.l10n.t("CLI options (optional)")}" style="width:100%" />
+        </div>
+        <div id="launchPreview" style="font-family:monospace;font-size:11px;overflow-wrap:anywhere;margin:6px 0" aria-live="polite"></div>
+        <button class="glass-btn" id="launchAddBtn">${vscode.l10n.t("Add launch step")}</button>
+        <div class="hint">${vscode.l10n.t("Resume opens directly. Use a different session ID for each cell when continuing separate conversations.")}</div>
+        <div class="setting-row" style="margin-top:10px">
           <span class="setting-label">${vscode.l10n.t("Command")}</span>
           <select class="glass-select" id="cmdPreset" style="flex:1;min-width:0;">
             <option value="">${vscode.l10n.t("Select command…")}</option>
@@ -2028,10 +1858,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       theme: vscode.l10n.t("Theme"),
       shellAuto: vscode.l10n.t("IDE Default"),
       shell: vscode.l10n.t("Shell"),
-      mcpAlreadyRegistered: vscode.l10n.t("Registered in Claude Desktop"),
-      mcpRegister: vscode.l10n.t("Register in Claude Desktop"),
-      mcpUnregister: vscode.l10n.t("Unregister"),
-      mcpRegisteredStatus: vscode.l10n.t("✅ Registered in Claude Desktop"),
     })};
     var vscode = acquireVsCodeApi();
 
@@ -2097,35 +1923,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     document.getElementById('reloadBtn').addEventListener('click', function() {
       vscode.postMessage({ type: 'reload' });
     });
-
-    // ── MCP Registration ──
-    var mcpRegStatusEl = document.getElementById('mcpRegStatus');
-    var registerMcpDesktopBtn = document.getElementById('registerMcpDesktopBtn');
-    var mcpAlreadyRegistered = false;
-    registerMcpDesktopBtn.addEventListener('click', function() {
-      registerMcpDesktopBtn.disabled = true;
-      registerMcpDesktopBtn.style.opacity = '0.5';
-      if (mcpAlreadyRegistered) {
-        vscode.postMessage({ type: 'unregisterMcpDesktop' });
-      } else {
-        vscode.postMessage({ type: 'registerMcpDesktop' });
-      }
+    document.getElementById('diagnosticsBtn').addEventListener('click', function() {
+      vscode.postMessage({ type: 'showDiagnostics' });
     });
-    // Check registration status on load
-    vscode.postMessage({ type: 'checkMcpRegistration' });
-    function setMcpRegistered(registered) {
-      mcpAlreadyRegistered = registered;
-      registerMcpDesktopBtn.disabled = false;
-      registerMcpDesktopBtn.style.opacity = '1';
-      registerMcpDesktopBtn.style.cursor = 'pointer';
-      if (registered) {
-        mcpRegStatusEl.innerHTML = __i18n.mcpRegisteredStatus;
-        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">\u2716</span> ' + __i18n.mcpUnregister;
-      } else {
-        mcpRegStatusEl.innerHTML = '';
-        registerMcpDesktopBtn.innerHTML = '<span class="btn-icon">&#9889;</span> ' + __i18n.mcpRegister;
-      }
-    }
 
     // ── Cell Merge preview grid ──
     var mergeGridEl = document.getElementById('mergeGrid');
@@ -2399,15 +2199,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       themeDisplay.classList.toggle('open', themeDropdownOpen);
     }
 
+    function clearAppearanceOverrides(fields) {
+      for (var id in cellOverrides) {
+        for (var i = 0; i < fields.length; i++) delete cellOverrides[id][fields[i]];
+        if (Object.keys(cellOverrides[id]).length === 0) delete cellOverrides[id];
+      }
+      vscode.postMessage({ type: 'clearAllCellOverrides', fields: fields });
+      updateTabOverrideIndicators();
+    }
+
     function selectTheme(name) {
       if (activeSettingsTab === 'all') {
         curThemeName = name;
         themeDisplayText.textContent = getThemeDisplayName(name);
         toggleThemeDropdown(false);
         vscode.postMessage({ type: 'setConfig', key: 'colorTheme', value: name });
-        cellOverrides = {};
-        vscode.postMessage({ type: 'clearAllCellOverrides' });
-        updateTabOverrideIndicators();
+        clearAppearanceOverrides(['themeName', 'bgColor', 'fgColor']);
       } else {
         var cid = parseInt(activeSettingsTab, 10);
         if (!cellOverrides[cid]) cellOverrides[cid] = { bgColor: '', fgColor: '', fontFamily: '', themeName: '' };
@@ -2529,6 +2336,35 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     var cmdTimeoutMsInput = document.getElementById('cmdTimeoutMs');
     var defaultSteps = [];
 
+    var makeLaunchCommand = ${buildLaunchCommand.toString()};
+    var launchCli = document.getElementById('launchCli');
+    var launchMode = document.getElementById('launchMode');
+    var launchSession = document.getElementById('launchSession');
+    var launchOptions = document.getElementById('launchOptions');
+    var launchPreview = document.getElementById('launchPreview');
+    var launchAdd = document.getElementById('launchAddBtn');
+    function launchValue() {
+      return { cli: launchCli.value, mode: launchMode.value, sessionId: launchSession.value, options: launchOptions.value };
+    }
+    function updateLaunchPreview() {
+      document.getElementById('launchSessionRow').style.display = launchMode.value === 'session' ? 'flex' : 'none';
+      try {
+        launchPreview.textContent = makeLaunchCommand(launchValue());
+        launchAdd.disabled = false;
+      } catch (error) {
+        launchPreview.textContent = ${JSON.stringify(vscode.l10n.t("Enter a valid session ID and single-line CLI options."))};
+        launchAdd.disabled = true;
+      }
+    }
+    [launchCli, launchMode, launchSession, launchOptions].forEach(function(el) { el.addEventListener('input', updateLaunchPreview); el.addEventListener('change', updateLaunchPreview); });
+    launchAdd.addEventListener('click', function() {
+      var launch = launchValue();
+      var command;
+      try { command = makeLaunchCommand(launch); } catch (_) { return; }
+      addStep({ type: 'command', input: command }, launch);
+    });
+    updateLaunchPreview();
+
     function getStepsForTarget(target) {
       if (target === 'all') return defaultSteps || [];
       var ov = cellOverrides[parseInt(String(target), 10)] || {};
@@ -2537,7 +2373,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       return [];
     }
 
-    function addStep(step) {
+    function addStep(step, launch) {
       var target = activeCmdTab === 'all' ? 'all' : parseInt(activeCmdTab, 10);
       if (target === 'all') {
         defaultSteps.push(step);
@@ -2546,7 +2382,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         if (!cellOverrides[target].startupSteps) cellOverrides[target].startupSteps = [];
         cellOverrides[target].startupSteps.push(step);
       }
-      vscode.postMessage({ type: 'addStep', target: target, step: step });
+      vscode.postMessage({ type: 'addStep', target: target, step: step, launch: launch });
       updateCmdTabIndicators();
     }
 
@@ -2636,9 +2472,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         fontDisplayText.textContent = getDisplayName(val);
         toggleDropdown(false);
         vscode.postMessage({ type: 'setConfig', key: 'fontFamily', value: val });
-        cellOverrides = {};
-        vscode.postMessage({ type: 'clearAllCellOverrides' });
-        updateTabOverrideIndicators();
+        clearAppearanceOverrides(['fontFamily']);
       } else {
         var cid = parseInt(activeSettingsTab, 10);
         if (!cellOverrides[cid]) cellOverrides[cid] = { bgColor: '', fgColor: '', fontFamily: '', themeName: '' };
@@ -2743,9 +2577,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           if (prefix === 'bg') curBg = val; else curFg = val;
           updateColorUI(val);
           vscode.postMessage({ type: 'setConfig', key: configKey, value: val });
-          cellOverrides = {};
-          vscode.postMessage({ type: 'clearAllCellOverrides' });
-          updateTabOverrideIndicators();
+          clearAppearanceOverrides([overrideKey]);
         } else {
           var cid = parseInt(activeSettingsTab, 10);
           if (!cellOverrides[cid]) cellOverrides[cid] = { bgColor: '', fgColor: '', fontFamily: '', themeName: '' };
@@ -2761,9 +2593,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           if (prefix === 'bg') curBg = ''; else curFg = '';
           updateColorUI('');
           vscode.postMessage({ type: 'setConfig', key: configKey, value: '' });
-          cellOverrides = {};
-          vscode.postMessage({ type: 'clearAllCellOverrides' });
-          updateTabOverrideIndicators();
+          clearAppearanceOverrides([overrideKey]);
         } else {
           var cid = parseInt(activeSettingsTab, 10);
           if (!cellOverrides[cid]) cellOverrides[cid] = { bgColor: '', fgColor: '', fontFamily: '', themeName: '' };
@@ -3377,16 +3207,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         var portValue = document.getElementById('mcpPortValue');
         if (portInfo) portInfo.style.display = msg.port > 0 ? 'block' : 'none';
         if (portValue) portValue.textContent = msg.port;
-      }
-      if (msg.type === 'mcpRegistrationStatus') {
-        setMcpRegistered(msg.desktop);
-      }
-      if (msg.type === 'mcpRegisterResult') {
-        setMcpRegistered(msg.success);
-      }
-      if (msg.type === 'mcpUnregisterResult') {
-        // On success, registered=false. On failure, keep current state.
-        setMcpRegistered(msg.success ? false : mcpAlreadyRegistered);
       }
       if (msg.type === 'configValues') {
         curZoom = msg.zoom;

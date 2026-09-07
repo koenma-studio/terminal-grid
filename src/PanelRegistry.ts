@@ -94,10 +94,21 @@ class PanelRegistry {
     return Array.from(this._panels.entries());
   }
 
-  disposeAll(): void {
+  /** Preserve saved UI/MCP tab order when VS Code revives the active editor first. */
+  reorder(tabIds: number[]): void {
+    const order = new Map(tabIds.map((id, index) => [id, index]));
+    const before = this.entries();
+    const after = [...before].sort(([a], [b]) => (order.get(a) ?? Infinity) - (order.get(b) ?? Infinity));
+    if (after.some(([id], index) => before[index][0] !== id)) {
+      this._panels = new Map(after);
+      this._onDidChange.fire();
+    }
+  }
+
+  disposeAll(preserveState = false): void {
     const panels = Array.from(this._panels.values());
     for (const p of panels) {
-      try { p.dispose(); } catch { /* ignore */ }
+      try { p.dispose(preserveState); } catch { /* ignore */ }
     }
     this._panels.clear();
     this._activeTabId = undefined;
@@ -108,20 +119,26 @@ export const panelRegistry = new PanelRegistry();
 
 export class TabIdAllocator {
   private static readonly KEY = "nextTabId";
+  private static readonly _next = new WeakMap<vscode.Memento, number>();
   static next(context: vscode.ExtensionContext): number {
-    const current = context.globalState.get<number>(TabIdAllocator.KEY, 0);
-    void context.globalState.update(TabIdAllocator.KEY, current + 1);
+    const current = this.peek(context);
+    this._next.set(context.workspaceState, current + 1);
+    void context.workspaceState.update(TabIdAllocator.KEY, current + 1);
     return current;
   }
   /** Ensure the allocator never hands out `id` again (nextTabId > id). No-op if already past it. */
   static reserve(context: vscode.ExtensionContext, id: number): void {
-    const current = context.globalState.get<number>(TabIdAllocator.KEY, 0);
-    if (current <= id) void context.globalState.update(TabIdAllocator.KEY, id + 1);
+    const current = this.peek(context);
+    if (current <= id) {
+      this._next.set(context.workspaceState, id + 1);
+      void context.workspaceState.update(TabIdAllocator.KEY, id + 1);
+    }
   }
   static peek(context: vscode.ExtensionContext): number {
-    return context.globalState.get<number>(TabIdAllocator.KEY, 0);
+    return Math.max(this._next.get(context.workspaceState) ?? 0, context.workspaceState.get<number>(TabIdAllocator.KEY, 0));
   }
   static reset(context: vscode.ExtensionContext): Thenable<void> {
-    return context.globalState.update(TabIdAllocator.KEY, 0);
+    this._next.set(context.workspaceState, 0);
+    return context.workspaceState.update(TabIdAllocator.KEY, 0);
   }
 }

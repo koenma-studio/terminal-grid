@@ -138,7 +138,7 @@ const output = await vscode.commands.executeCommand('terminalGrid.readCell', 0, 
 
 MCPブリッジは `127.0.0.1` でのみリッスンします (デフォルトポート `7890`、`terminalGrid.apiPort` で変更可)。リモート接続は受け付けません。
 
-Claude Desktop に MCP サーバーを登録すると、バンドルされた `mcp-server.js` を指す `terminal-grid` エントリが書き込まれます。アンインストール前に **Terminal Grid: Claude Desktop の MCP 登録解除** を実行すると綺麗に削除されます。参照先スクリプトが存在しない古い登録は、次回の拡張機能起動時に自動的にクリーンアップされます。
+既存の MCP 登録は、バージョンに依存しない拡張機能ストレージ内の `mcp-server.js` を参照します。無効なパスは起動時に修復されます。アンインストール前に、設定したクライアントから `terminal-grid` を削除してください。Codex では `codex mcp remove terminal-grid` を実行し、既存の Claude Desktop 登録は `claude_desktop_config.json` から削除できます。
 
 ## 要件
 

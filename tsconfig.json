@@ -8,6 +8,7 @@
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
   "exclude": ["node_modules", "out", "src/webview", "media", "scripts"]
