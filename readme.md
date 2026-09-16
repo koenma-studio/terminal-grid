@@ -1,5 +1,9 @@
 # Terminal Grid
 
+### 0.7.1 improvements
+
+Click web links to open your browser, folder paths to open your file explorer, and file paths to select the file in its folder without launching it. Terminal Grid also detects visible absolute paths and URLs when a CLI only colors the text, including wrapped paths and quoted paths with spaces. Dragging to select link text does not open it.
+
 ### 0.7.0 improvements
 
 Returning to a hidden grid preserves the history you were reading or follows the newest output if you were at the bottom. Hidden layout changes no longer resize running terminals to two columns. Cell zoom and divider proportions survive webview restoration.

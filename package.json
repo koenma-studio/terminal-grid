@@ -2,7 +2,7 @@
   "name": "terminal-grid",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "koenma",
   "author": "koenma",
   "license": "MIT",

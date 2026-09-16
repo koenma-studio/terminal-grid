@@ -30,6 +30,7 @@ tsconfig*.json
 **/*.map
 **/*.test.js
 test-api.js
+link-test.txt
 test/**
 playwright.config.js
 test-results/**

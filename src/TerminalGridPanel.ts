@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+import { parseTerminalLink } from "./TerminalLink";
 import { BUILTIN_THEMES, resolveThemeColors } from "./themes";
 import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
 import { tabState } from "./TabStateStore";
@@ -619,6 +621,9 @@ export class TerminalGridPanel {
 
     this._panel.webview.onDidReceiveMessage(async (msg) => {
       switch (msg.type) {
+        case "openExternal":
+          await this._openTerminalLink(msg.uri);
+          break;
         case "selectionDrag": {
           // Pause the stream itself while dragging so a noisy process cannot grow an
           // unbounded webview queue. Mouseup/blur resumes it immediately.
@@ -843,6 +848,54 @@ export class TerminalGridPanel {
       "images",
       "sidebar.svg"
     );
+  }
+
+  /** Route clicked terminal links through the host, never through webview popups. */
+  private async _openTerminalLink(value: unknown): Promise<void> {
+    const target = parseTerminalLink(value);
+    if (!target) return;
+    try {
+      if (target.kind === "web") {
+        if (!await vscode.env.openExternal(vscode.Uri.parse(target.uri, true))) throw new Error("Browser unavailable");
+        return;
+      }
+      // A remote host's file paths must not be opened on the local UI machine.
+      if (vscode.env.remoteName) {
+        void vscode.window.showWarningMessage(vscode.l10n.t("Local file explorer links are unavailable in a remote workspace."));
+        return;
+      }
+      let localPath: string;
+      if (target.kind === "file") {
+        const uri = new URL(target.uri);
+        if (uri.hostname.toLowerCase() === os.hostname().toLowerCase()) uri.hostname = "";
+        localPath = fileURLToPath(uri);
+      } else {
+        localPath = target.path;
+        // Markdown links sometimes prefix Windows drive paths with a slash.
+        if (process.platform === "win32" && /^\/[a-z]:[\\/]/i.test(localPath)) localPath = localPath.slice(1);
+      }
+      if (!path.isAbsolute(localPath) || /^[\\/]{2}[?.][\\/]/.test(localPath)) return;
+      let stat: fs.Stats;
+      try {
+        stat = await fs.promises.stat(localPath);
+      } catch (error) {
+        const withoutLine = localPath.replace(/:\d+(?::\d+)?$/, "");
+        // Prefer a literal existing filename before removing a CLI line/column suffix.
+        if (!["ENOENT", "ENOTDIR", "EINVAL"].includes((error as NodeJS.ErrnoException).code || "") || withoutLine === localPath) throw error;
+        localPath = withoutLine;
+        stat = await fs.promises.stat(localPath);
+      }
+      const uri = vscode.Uri.file(localPath);
+      if (stat.isDirectory()) {
+        if (!await vscode.env.openExternal(uri)) throw new Error("File explorer unavailable");
+      } else {
+        await vscode.commands.executeCommand("revealFileInOS", uri);
+      }
+    } catch {
+      void vscode.window.showWarningMessage(target.kind === "web"
+        ? vscode.l10n.t("Could not open the link in your browser.")
+        : vscode.l10n.t("Could not show the local path in your file explorer."));
+    }
   }
 
   /** Public accessor for this panel's tab id. */

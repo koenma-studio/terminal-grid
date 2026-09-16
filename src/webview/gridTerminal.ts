@@ -7,6 +7,7 @@ import { CellSelection } from "./selection";
 import { CellViewport } from "./viewport";
 import { captureTerminalSnapshot } from "../TerminalSnapshot";
 import { openTerminalHistory } from "./history";
+import { registerTerminalLinks } from "./links";
 
 declare function acquireVsCodeApi(): {
   postMessage(msg: unknown): void;
@@ -274,6 +275,7 @@ for (let i = 0; i < total; i++) {
   terminal.loadAddon(new Unicode11Addon());
   terminal.unicode.activeVersion = "11";
   terminal.open(termContainer);
+  registerTerminalLinks(terminal, uri => vscode.postMessage({ type: "openExternal", uri }));
 
   const copyRetained = document.createElement("button");
   copyRetained.className = "cell-copy-retained";

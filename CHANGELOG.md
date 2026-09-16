@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1] - 2026-09-16
+
+### Fixed
+- CLI hyperlinks (OSC 8) open through VS Code in the default browser instead of using blocked webview popups. Selecting link text does not open the link.
+- Local OSC 8 links (`file://` URLs and absolute paths) open folders in the system file explorer or reveal files without executing them. File links may include a line/column suffix.
+- Detect visible absolute paths and HTTP(S)/file URLs even when a CLI emits only colored text, including soft-wrapped paths and quoted paths containing spaces.
+
 ## [0.7.0] - 2026-09-07
 
 ### Fixed
