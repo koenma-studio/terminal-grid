@@ -16,6 +16,14 @@ export function parseTerminalLink(value: unknown): TerminalLink | undefined {
     const uri = new URL(text);
     if (uri.protocol === "http:" || uri.protocol === "https:") return { kind: "web", uri: uri.href };
     if (uri.protocol === "file:") return { kind: "file", uri: uri.href };
-  } catch { /* Malformed or relative targets are not links we can resolve. */ }
+  } catch { /* Relative file paths are resolved against the workspace by the host. */ }
+  const withoutLine = text.replace(/:\d+(?::\d+)?$/, "");
+  // A line suffix can resemble a URI scheme, but other schemes stay unsupported.
+  if (/^[a-z][a-z\d+.-]*:/i.test(withoutLine)) return;
+  if (/^\.{1,2}[\\/]/.test(text)
+    || (!text.startsWith("\\") && /[\\/]/.test(text))
+    || /^[^\\/:*?"<>|]+\.[^\\/:*?"<>|\s.]+$/.test(withoutLine)) {
+    return { kind: "path", path: text };
+  }
   return undefined;
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2] - 2026-09-25
+
+### Fixed
+- Relative paths such as `docs/index.html`, `./src/file.ts`, and `../file.txt` now resolve from the workspace folder where terminals start. File links can also include `:line:column` or `#Lline` references.
+- Paths split by CLI line breaks, indentation, or terminal row padding now retain the full target when clicked on any displayed fragment, including after resizing the grid.
+- Markdown file links and IPv6 URLs keep their intended targets. Quoted file paths preserve spaces, and selecting link text still does not open it.
+
 ## [0.7.1] - 2026-09-16
 
 ### Fixed

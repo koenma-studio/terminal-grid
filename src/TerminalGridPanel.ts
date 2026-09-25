@@ -41,6 +41,11 @@ interface TerminalInstance {
 
 interface StartupRun { steps: StartupStep[]; index: number; insideLlm: boolean; generation: number; paused: boolean; }
 
+function initialWorkingDirectory(): string {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    || process.env.USERPROFILE || process.env.HOME || ".";
+}
+
 function stepsDelay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -874,12 +879,16 @@ export class TerminalGridPanel {
         // Markdown links sometimes prefix Windows drive paths with a slash.
         if (process.platform === "win32" && /^\/[a-z]:[\\/]/i.test(localPath)) localPath = localPath.slice(1);
       }
-      if (!path.isAbsolute(localPath) || /^[\\/]{2}[?.][\\/]/.test(localPath)) return;
+      if (/^[\\/]{2}[?.][\\/]/.test(localPath)) return;
+      if (!path.isAbsolute(localPath)) {
+        // Terminals start in this folder; relative CLI links use the same base.
+        localPath = path.resolve(initialWorkingDirectory(), localPath);
+      }
       let stat: fs.Stats;
       try {
         stat = await fs.promises.stat(localPath);
       } catch (error) {
-        const withoutLine = localPath.replace(/:\d+(?::\d+)?$/, "");
+        const withoutLine = localPath.replace(/(?::\d+(?::\d+)?|#L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?)$/, "");
         // Prefer a literal existing filename before removing a CLI line/column suffix.
         if (!["ENOENT", "ENOTDIR", "EINVAL"].includes((error as NodeJS.ErrnoException).code || "") || withoutLine === localPath) throw error;
         localPath = withoutLine;
@@ -1017,11 +1026,7 @@ export class TerminalGridPanel {
   }
 
   private _createTerminals(defaultCols: number, defaultRows: number): void {
-    const cwd =
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-      process.env.USERPROFILE ||
-      process.env.HOME ||
-      ".";
+    const cwd = initialWorkingDirectory();
 
     const total = this._rows * this._cols;
     const nodePty = TerminalGridPanel._getNodePty();
@@ -1093,11 +1098,7 @@ export class TerminalGridPanel {
     // Reset the webview terminal (full clear + reset state)
     this._panel.webview.postMessage({ type: "reset", id });
 
-    const cwd =
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-      process.env.USERPROFILE ||
-      process.env.HOME ||
-      ".";
+    const cwd = initialWorkingDirectory();
 
     const globalShell = vscode.workspace.getConfiguration("terminalGrid").get<string>("shellType", "");
     const cellOverrides = tabState.getCellOverrides(this._tabId) as Record<number, { shellType?: string; startupCommand?: string; startupSteps?: StartupStep[] }>;

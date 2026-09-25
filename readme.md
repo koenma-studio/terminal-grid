@@ -1,5 +1,9 @@
 # Terminal Grid
 
+### 0.7.2 improvements
+
+Relative paths such as `docs/index.html` are now clickable and resolve from the workspace folder where terminals start. Paths split across CLI output lines keep the full target, including when the CLI adds indentation or row padding and when you resize the grid. Clicking a file path selects the file in your system file explorer.
+
 ### 0.7.1 improvements
 
 Click web links to open your browser, folder paths to open your file explorer, and file paths to select the file in its folder without launching it. Terminal Grid also detects visible absolute paths and URLs when a CLI only colors the text, including wrapped paths and quoted paths with spaces. Dragging to select link text does not open it.

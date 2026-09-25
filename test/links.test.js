@@ -8,7 +8,7 @@ const { pathToFileURL } = require('node:url');
 
 const opened = [], revealed = [], warnings = [];
 let openResult = true;
-let revealError, remoteName;
+let revealError, remoteName, workspaceFolders;
 const originalLoad = Module._load;
 Module._load = function (id, ...args) {
   if (id === 'vscode') return {
@@ -25,7 +25,8 @@ Module._load = function (id, ...args) {
       if (revealError) throw revealError;
     } },
     window: { showWarningMessage: message => warnings.push(message) },
-    workspace: { onDidChangeConfiguration: () => ({ dispose() {} }) },
+    workspace: { get workspaceFolders() { return workspaceFolders; },
+      onDidChangeConfiguration: () => ({ dispose() {} }) },
     l10n: { t: text => text },
   };
   return originalLoad.call(this, id, ...args);
@@ -35,9 +36,10 @@ const { tabState } = require('../out/TabStateStore');
 const { parseTerminalLink } = require('../out/TerminalLink');
 Module._load = originalLoad;
 
-function receiver() {
+function receiver(workspacePath) {
   opened.length = 0; revealed.length = 0; warnings.length = 0; openResult = true;
   revealError = undefined; remoteName = undefined;
+  workspaceFolders = workspacePath ? [{ uri: { fsPath: workspacePath } }] : undefined;
   let receive;
   const context = { extensionUri: {}, workspaceState: { get: (_key, fallback) => fallback } };
   tabState.init(context);
@@ -123,6 +125,51 @@ test('slash-prefixed Windows drive links resolve to the real file', { skip: proc
   assert.deepEqual(warnings, []);
 });
 
+test('relative CLI paths resolve from the workspace, including line references', async t => {
+  const { directory } = localFiles(t), receive = receiver(directory);
+  const relative = 'docs/references/panokseon-32dir-2026-09-25/index.html';
+  const file = path.join(directory, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, 'test');
+  for (const target of [relative, `./${relative}`, `${relative}:12:3`, `${relative}#L12`]) {
+    await receive({ type: 'openExternal', uri: target });
+  }
+  assert.deepEqual(revealed, Array(4).fill({ command: 'revealFileInOS', uri: pathToFileURL(file).href }));
+  assert.deepEqual(warnings, []);
+});
+
+test('relative filenames, parent paths, and folders resolve from the workspace', async t => {
+  const { directory, folder, file } = localFiles(t), receive = receiver(folder);
+  const parentFile = path.join(directory, 'parent.txt');
+  fs.writeFileSync(parentFile, 'test');
+  for (const target of [path.basename(file), `./${path.basename(file)}`, '../parent.txt']) {
+    await receive({ type: 'openExternal', uri: target });
+  }
+  await receive({ type: 'openExternal', uri: './' });
+  assert.deepEqual(revealed, [file, file, parentFile].map(file => ({
+    command: 'revealFileInOS', uri: pathToFileURL(file).href,
+  })));
+  assert.deepEqual(opened, [pathToFileURL(folder).href]);
+  assert.deepEqual(warnings, []);
+});
+
+test('Windows relative paths support dot and bare backslash forms', { skip: process.platform !== 'win32' }, async t => {
+  const { directory, file } = localFiles(t), receive = receiver(directory);
+  const relative = path.relative(directory, file);
+  for (const target of [relative, `.\\${relative}`]) await receive({ type: 'openExternal', uri: target });
+  assert.deepEqual(revealed, Array(2).fill({ command: 'revealFileInOS', uri: pathToFileURL(file).href }));
+  assert.deepEqual(warnings, []);
+});
+
+test('literal hash filenames take precedence over line-reference suffixes', async t => {
+  const { folder } = localFiles(t), receive = receiver(folder);
+  const file = path.join(folder, 'report.txt#L12');
+  fs.writeFileSync(file, 'test');
+  await receive({ type: 'openExternal', uri: path.basename(file) });
+  assert.deepEqual(revealed, [{ command: 'revealFileInOS', uri: pathToFileURL(file).href }]);
+  assert.deepEqual(warnings, []);
+});
+
 test('missing paths and file-explorer failures are reported without launching files', async t => {
   const { folder, file, directory } = localFiles(t), receive = receiver();
   await receive({ type: 'openExternal', uri: path.join(directory, 'missing.txt') });
@@ -145,14 +192,16 @@ test('remote paths are not confused with files on the local machine', async t =>
   assert.deepEqual(opened, ['https://example.com/']);
 });
 
-test('link classification accepts absolute paths while rejecting commands and relative paths', () => {
+test('link classification accepts absolute and relative files while rejecting other schemes', () => {
   for (const target of ['C:\\Users\\USER\\report.txt', 'G:/repos/terminal-grid', '/G:/repos/terminal-grid',
-    '/home/user/report.txt', '\\\\server\\share\\report.txt']) {
+    '/home/user/report.txt', '\\\\server\\share\\report.txt', './report.txt', '.\\report.txt',
+    '../report.txt', '..\\report.txt', 'docs/references/index.html', 'docs\\references\\index.html',
+    'report.txt', 'report.txt:12:3', '자료 (최종).html', './', '../']) {
     assert.deepEqual(parseTerminalLink(target), { kind: 'path', path: target });
   }
   assert.equal(parseTerminalLink('file:///C:/Users/USER/report.txt').kind, 'file');
   for (const target of ['javascript:alert(1)', 'command:test', 'vscode://file/C:/test', 'data:text/plain,test',
-    'report.txt', './report.txt', 'C:report.txt', '/tmp/file\x00.txt', '\\\\?\\C:\\test']) {
+    'https://', 'C:report.txt', '/tmp/file\x00.txt', '\\\\?\\C:\\test', 'not a URL', '', 'command:docs/index.html']) {
     assert.equal(parseTerminalLink(target), undefined);
   }
 });
