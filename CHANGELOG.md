@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.3] - 2026-10-03
+
+### Fixed
+- Paths and URLs followed directly by Korean text or a note now open the intended target: `assets/front.jpg를`, `docs/HANDOFF.md에`, `captures/hud-tour/에`, `front.png(정면)`, `(docs/index.html)인지`. If a Korean file or folder name with an attached particle does not exist, such as `docs/자료를`, the existing `docs/자료` opens instead.
+- A path that wraps onto the next row is underlined across both rows and opens from either fragment, after resizing a cell and when a CLI splits a long path at the row edge (`…/lineup-front-v2.j` + `pg를`).
+
+### Changed
+- Claude model presets launch the `fable`, `opus`, `sonnet` and `haiku` aliases, labeled as the latest model of each family, instead of showing fixed versions. The pinned `claude-fable-5` preset was removed.
+
 ## [0.7.2] - 2026-09-25
 
 ### Fixed

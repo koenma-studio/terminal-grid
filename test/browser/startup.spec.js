@@ -44,7 +44,7 @@ test('retry and cancel target the paused generation without sending terminal inp
   await expect(page.getByText('Select a session', { exact: true })).toBeHidden();
 });
 
-test('sidebar launch modes preview and save native resume commands for the selected cell', async ({ page }) => {
+function sidebarHtml() {
   const originalLoad = Module._load;
   Module._load = function(id, ...args) {
     if (id === 'vscode') return {
@@ -54,14 +54,33 @@ test('sidebar launch modes preview and save native resume commands for the selec
     };
     return originalLoad.call(this, id, ...args);
   };
-  let html;
   try {
     const { SidebarProvider } = require('../../out/SidebarProvider');
     const provider = Object.create(SidebarProvider.prototype);
     provider._mcpPort = 7890;
     provider._context = { extension: { packageJSON: require('../../package.json') } };
-    html = provider._getHtml();
+    return provider._getHtml();
   } finally { Module._load = originalLoad; }
+}
+
+test('Claude model presets launch the latest model of each family instead of pinned versions', async ({ page }) => {
+  await page.setContent(sidebarHtml().replace(/<script[\s\S]*?<\/script>/g, ''));
+  const presets = await page.locator('#cmdPreset option').evaluateAll(options => options
+    .filter(option => option.value.includes('--model')).map(option => ({ value: option.value, label: option.textContent })));
+  expect(presets.length).toBeGreaterThan(0);
+  for (const { value, label } of presets) {
+    // Aliases follow Claude Code to each new model; full model IDs never update.
+    expect(value).not.toMatch(/claude-[a-z]+-\d/);
+    expect(label).not.toMatch(/\d+\.\d+|\((?:Fable|Opus|Sonnet|Haiku) \d/);
+  }
+  expect(presets.filter(preset => /^claude --model (?:fable|opus|sonnet|haiku)$/.test(preset.value)).map(preset => preset.label)).toEqual([
+    'claude --model fable (latest Fable)', 'claude --model opus (latest Opus)',
+    'claude --model sonnet (latest Sonnet)', 'claude --model haiku (latest Haiku)',
+  ]);
+});
+
+test('sidebar launch modes preview and save native resume commands for the selected cell', async ({ page }) => {
+  const html = sidebarHtml();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {

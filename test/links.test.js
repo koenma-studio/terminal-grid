@@ -170,6 +170,19 @@ test('literal hash filenames take precedence over line-reference suffixes', asyn
   assert.deepEqual(warnings, []);
 });
 
+test('Korean particles after an existing Korean name are removed only when the literal path is missing', async t => {
+  const { directory } = localFiles(t), receive = receiver(directory);
+  const material = path.join(directory, 'docs', '자료'), age = path.join(directory, 'docs', '나이');
+  const literal = path.join(directory, 'docs', '보고서를');
+  fs.mkdirSync(material, { recursive: true }); fs.mkdirSync(age); fs.writeFileSync(literal, 'test');
+  for (const target of ['docs/자료를', 'docs/자료에서는', 'docs/나이가', 'docs/보고서를', 'docs/과도', 'docs/없는폴더를']) {
+    await receive({ type: 'openExternal', uri: target });
+  }
+  assert.deepEqual(opened, [material, material, age].map(folder => pathToFileURL(folder).href));
+  assert.deepEqual(revealed, [{ command: 'revealFileInOS', uri: pathToFileURL(literal).href }]);
+  assert.deepEqual(warnings, Array(2).fill('Could not show the local path in your file explorer.'));
+});
+
 test('missing paths and file-explorer failures are reported without launching files', async t => {
   const { folder, file, directory } = localFiles(t), receive = receiver();
   await receive({ type: 'openExternal', uri: path.join(directory, 'missing.txt') });

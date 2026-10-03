@@ -1,9 +1,26 @@
 import type { ILink, IBufferCellPosition, Terminal } from "@xterm/xterm";
-import { parseTerminalLink } from "../TerminalLink";
+import { parseTerminalLink, withoutAttachedProse } from "../TerminalLink";
 
 interface TextLink { start: number; end: number; uri: string; delimiter?: string }
 type CellPosition = IBufferCellPosition & { width: number };
 interface TextBlock { text: string; positions: CellPosition[] }
+
+/** Keep balanced brackets in paths/URLs, but exclude surrounding prose. */
+function trimLink(uri: string): string {
+  for (;;) {
+    const last = uri.slice(-1);
+    const opener = ({ ")": "(", "]": "[", "}": "{" } as Record<string, string>)[last];
+    const trimmed = /[.,;:!?]/.test(last) || (opener && uri.split(last).length > uri.split(opener).length)
+      ? uri.slice(0, -1) : withoutAttachedProse(uri);
+    if (trimmed === uri) return uri;
+    uri = trimmed;
+  }
+}
+
+/** Terminal cells covered by text positions; surrogate pairs share one position. */
+function cellWidth(positions: CellPosition[]): number {
+  return positions.reduce((width, position, index) => position === positions[index - 1] ? width : width + position.width, 0);
+}
 
 function findTextLinks(text: string, allowUnclosed = false): TextLink[] {
   const links: TextLink[] = [];
@@ -33,16 +50,7 @@ function findTextLinks(text: string, allowUnclosed = false): TextLink[] {
       const stop = text.slice(start).search(/[\s<>"'`|]/);
       end = stop < 0 ? text.length : start + stop;
     }
-    let uri = text.slice(start, end);
-    if (!closing) {
-      // Keep balanced brackets in paths/URLs, but exclude surrounding prose.
-      for (;;) {
-        const last = uri.slice(-1);
-        const opener = ({ ")": "(", "]": "[", "}": "{" } as Record<string, string>)[last];
-        if (/[.,;:!?]/.test(last) || (opener && uri.split(last).length > uri.split(opener).length)) uri = uri.slice(0, -1);
-        else break;
-      }
-    }
+    const uri = closing ? text.slice(start, end) : trimLink(text.slice(start, end));
     if (parseTerminalLink(uri)) links.push({ start, end: start + uri.length, uri,
       delimiter: before && "(\"'`[<".includes(before) ? before : undefined });
     starts.lastIndex = Math.max(starts.lastIndex, end);
@@ -60,10 +68,12 @@ function continuesPath(current: TextBlock, next: TextBlock, cols: number): boole
   if (!rest || /^(?:[\\/]|\.{1,2}[\\/]|[>*|•]|[-+]\s)/.test(rest)) return false;
   const quote = tail.delimiter && "\"'`".includes(tail.delimiter) ? tail.delimiter : undefined;
   const stop = quote ? rest.indexOf(quote) : rest.search(/[\s<>"'`|]/);
-  const fragment = (stop < 0 ? rest : rest.slice(0, stop)).replace(/[)\]},;!?]+$/, "");
+  const word = stop < 0 ? rest : rest.slice(0, stop);
+  const fragment = trimLink(word);
   if (!fragment || /[=:]/.test(fragment.replace(/:\d+(?::\d+)?$/, ""))) return false;
   const end = current.positions[current.positions.length - 1];
-  const nearEdge = cols - (end.x + end.width - 1) <= 4;
+  const lastColumn = end.x + end.width - 1;
+  const nearEdge = cols - lastColumn <= 4;
   const nextEnd = next.positions[next.positions.length - 1];
   const nextNearEdge = cols - (nextEnd.x + nextEnd.width - 1) <= 4;
   // A file/component continuation or another full-width fragment is required;
@@ -71,7 +81,12 @@ function continuesPath(current: TextBlock, next: TextBlock, cols: number): boole
   const closer = ({ "(": ")", "[": "]", "<": ">" } as Record<string, string>)[tail.delimiter || ""] || quote;
   const closesPath = !!closer && rest.slice(fragment.length).startsWith(closer);
   const pathFragment = /[\\/]|\.[\p{L}\p{N}]/u.test(fragment) || closesPath || (nextNearEdge && stop < 0);
-  return pathFragment && (!!tail.delimiter || (nearEdge && leading > 0));
+  if (pathFragment && (!!tail.delimiter || (nearEdge && leading > 0))) return true;
+  // Word wrappers split only a word longer than the row. Korean prose attached to
+  // the remainder (`...v2.j` + `pg를`) then marks the end of the split path.
+  const tooLong = cellWidth(current.positions.slice(tail.start))
+    + cellWidth(next.positions.slice(leading, leading + word.length)) > lastColumn - leading;
+  return nearEdge && tooLong && /\p{Script=Hangul}/u.test(word.slice(fragment.length));
 }
 
 /** TUI renderers can fill a row with spaces, then indent the next wrapped row. */
@@ -174,10 +189,19 @@ function provideTextLinks(terminal: Terminal, y: number, activate: ILink["activa
     // A joined path touching the context limit may have unseen fragments.
     if ((index === 0 && first > 0) || (index === blocks.length - 1 && buffer.getLine(last + 1))) return [];
     return findTextLinks(block.text).flatMap(link => {
-      // Limit each range to its row, excluding CLI indentation and right padding.
-      const cells = block.positions.slice(link.start, link.end).filter(position => position.y === y);
-      const start = cells[0], end = cells[cells.length - 1];
-      if (!start || !end) return [];
+      // Range this row and the rows it soft-wraps into without a gap, excluding CLI
+      // indentation and right padding between hard-wrapped fragments.
+      const segments: CellPosition[][] = [];
+      for (const cell of block.positions.slice(link.start, link.end)) {
+        const segment = segments[segments.length - 1], previous = segment?.[segment.length - 1];
+        // A wide glyph may wrap leaving one empty padding cell on the prior row.
+        if (previous && (cell.y === previous.y || (cell.y === previous.y + 1 && cell.x === 1
+          && previous.x + previous.width - 1 + (cell.width > 1 ? 1 : 0) >= terminal.cols))) segment.push(cell);
+        else segments.push([cell]);
+      }
+      const segment = segments.find(cells => cells.some(position => position.y === y));
+      if (!segment) return [];
+      const start = segment[0], end = segment[segment.length - 1];
       return [{ text: link.uri, activate, range: {
         start: { x: start.x, y: start.y }, end: { x: end.x + end.width - 1, y: end.y },
       } }];

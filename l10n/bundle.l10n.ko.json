@@ -133,6 +133,7 @@
   "Version and MCP status": "버전 및 MCP 상태",
   "Terminal Grid status": "Terminal Grid 상태",
   "Running version: {0}": "실행 중인 버전: {0}",
+  "latest {0}": "최신 {0}",
   "Last local installation: {0}": "마지막 로컬 설치: {0}",
   "Reload Window is needed to use the installed build.": "설치된 빌드를 사용하려면 Reload Window가 필요합니다.",
   "Terminal Grid MCP: {0}": "Terminal Grid MCP: {0}",

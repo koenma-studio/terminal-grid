@@ -1711,11 +1711,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
               <option value="claude --dangerously-skip-permissions --effort max">claude --skip-perms --effort max</option>
             </optgroup>
             <optgroup label="${vscode.l10n.t("Claude · model (launch)")}">
-              <option value="claude --model fable">claude --model fable (Fable 5)</option>
-              <option value="claude --model claude-fable-5">claude --model claude-fable-5</option>
-              <option value="claude --model opus">claude --model opus (Opus 4.8)</option>
-              <option value="claude --model sonnet">claude --model sonnet (Sonnet 4.6)</option>
-              <option value="claude --model haiku">claude --model haiku (Haiku 4.5)</option>
+              <!-- Claude Code resolves these aliases to the newest model; full IDs would stay pinned. -->
+              <option value="claude --model fable">claude --model fable (${vscode.l10n.t("latest {0}", "Fable")})</option>
+              <option value="claude --model opus">claude --model opus (${vscode.l10n.t("latest {0}", "Opus")})</option>
+              <option value="claude --model sonnet">claude --model sonnet (${vscode.l10n.t("latest {0}", "Sonnet")})</option>
+              <option value="claude --model haiku">claude --model haiku (${vscode.l10n.t("latest {0}", "Haiku")})</option>
               <option value="claude --model fable --effort max">claude --model fable --effort max</option>
               <option value="claude --dangerously-skip-permissions --model fable --effort max">claude --skip-perms --model fable --effort max</option>
               <option value="claude --model fable --fallback-model opus">claude --model fable --fallback-model opus</option>

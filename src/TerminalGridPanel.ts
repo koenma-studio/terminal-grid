@@ -3,7 +3,7 @@ import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { parseTerminalLink } from "./TerminalLink";
+import { parseTerminalLink, withoutKoreanParticle } from "./TerminalLink";
 import { BUILTIN_THEMES, resolveThemeColors } from "./themes";
 import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
 import { tabState } from "./TabStateStore";
@@ -884,16 +884,21 @@ export class TerminalGridPanel {
         // Terminals start in this folder; relative CLI links use the same base.
         localPath = path.resolve(initialWorkingDirectory(), localPath);
       }
-      let stat: fs.Stats;
-      try {
-        stat = await fs.promises.stat(localPath);
-      } catch (error) {
-        const withoutLine = localPath.replace(/(?::\d+(?::\d+)?|#L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?)$/, "");
-        // Prefer a literal existing filename before removing a CLI line/column suffix.
-        if (!["ENOENT", "ENOTDIR", "EINVAL"].includes((error as NodeJS.ErrnoException).code || "") || withoutLine === localPath) throw error;
-        localPath = withoutLine;
-        stat = await fs.promises.stat(localPath);
+      const withoutLine = localPath.replace(/(?::\d+(?::\d+)?|#L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?)$/, "");
+      // Prefer a literal existing filename before removing a CLI line/column suffix
+      // or a Korean particle attached to a Korean name (`자료를` → `자료`).
+      let stat: fs.Stats | undefined, failure: unknown;
+      for (const candidate of new Set([localPath, withoutLine, ...withoutKoreanParticle(withoutLine)])) {
+        try {
+          stat = await fs.promises.stat(candidate);
+          localPath = candidate;
+          break;
+        } catch (error) {
+          if (!["ENOENT", "ENOTDIR", "EINVAL"].includes((error as NodeJS.ErrnoException).code || "")) throw error;
+          failure ??= error;
+        }
       }
+      if (!stat) throw failure;
       const uri = vscode.Uri.file(localPath);
       if (stat.isDirectory()) {
         if (!await vscode.env.openExternal(uri)) throw new Error("File explorer unavailable");

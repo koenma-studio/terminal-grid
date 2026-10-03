@@ -76,6 +76,17 @@ for (const [text, uri, column] of [
   ['reference=docs/index.html', 'docs/index.html', 12],
   ['https://example.com/path_(one)?a=1&b=2', 'https://example.com/path_(one)?a=1&b=2', 3],
   ['http://[::1]:3000/path?q=a&b=2', 'http://[::1]:3000/path?q=a&b=2', 3],
+  ['한눈에 보려면 assets/style-studies/lineup-front-v2.jpg를 열면 됩니다.', 'assets/style-studies/lineup-front-v2.jpg', 18],
+  ['새 시험은 bevy/captures/look/hud-tour/에 남깁니다.', 'bevy/captures/look/hud-tour/', 12],
+  ['README.md와 결과', 'README.md', 3],
+  ['원화(assets/front.png)를 확인', 'assets/front.png', 8],
+  ['assets/front.png(정면 그림)을 확인', 'assets/front.png', 3],
+  ['(docs/index.html)인지 확인', 'docs/index.html', 3],
+  ['[assets/front.png]에서', 'assets/front.png', 3],
+  ['src/app.ts:12에서 실패', 'src/app.ts:12', 3],
+  ['https://github.com/koenma-studio/terminal-grid를 참고하세요', 'https://github.com/koenma-studio/terminal-grid', 3],
+  ['docs/자료 폴더', 'docs/자료', 3],
+  ['docs/2026년', 'docs/2026년', 3],
 ]) {
   test(`visible text ${text} opens exactly the detected address`, async ({ page }) => {
     const point = await textOutput(page, text, column);
@@ -125,6 +136,7 @@ for (const [text, uri, points] of [
   ['(docs/index.ht\r\n  ml) 완료', 'docs/index.html', [[3, 0], [2, 1]]],
   ['"docs/my \r\n  report.html"', 'docs/my report.html', [[3, 0], [4, 1]]],
   ['(docs/references/   \r\n  index.html:12:3) 완료', 'docs/references/index.html:12:3', [[3, 0], [4, 1]]],
+  ['(assets/front-v2.j\r\n  pg)를 열면 됩니다.', 'assets/front-v2.jpg', [[3, 0], [2, 1]]],
 ]) {
   test(`CLI hard-wrapped path ${JSON.stringify(text)} resolves from every row`, async ({ page }) => {
     await textOutput(page, text);
@@ -221,6 +233,112 @@ test('a bare path at the right edge continues onto an indented CLI line', async 
   }
   await expect.poll(() => page.evaluate(() => messages.filter(m => m.type === 'openExternal')))
     .toEqual(Array(2).fill({ type: 'openExternal', uri }));
+});
+
+async function writeAt(page, cols, text) {
+  await page.evaluate(async ({ cols, text }) => {
+    const t = testCells[0].terminal;
+    // Keep the grid's delayed startup fit from overriding the test widths.
+    testCells[0].viewport.fit = () => {};
+    t.resize(cols, t.rows);
+    await new Promise(resolve => t.write(text, resolve));
+  }, { cols, text });
+}
+
+async function resize(page, cols) {
+  await page.evaluate(async cols => {
+    testCells[0].terminal.resize(cols, testCells[0].terminal.rows);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }, cols);
+}
+
+/** Viewport cell of visible text, counting wide characters as two cells. */
+async function locate(page, fragment) {
+  const location = await page.evaluate(fragment => {
+    const t = testCells[0].terminal, buffer = t.buffer.active, cell = buffer.getNullCell();
+    for (let row = 0; row < t.rows; row++) {
+      const line = buffer.getLine(buffer.viewportY + row);
+      let text = '';
+      const columns = [];
+      for (let column = 0; column < t.cols; column++) {
+        line.getCell(column, cell);
+        if (!cell.getWidth()) continue;
+        const chars = cell.getChars() || ' ';
+        text += chars;
+        for (let unit = 0; unit < chars.length; unit++) columns.push(column);
+      }
+      const index = text.indexOf(fragment);
+      if (index >= 0) return { column: columns[index], row };
+    }
+    return null;
+  }, fragment);
+  expect(location, fragment).not.toBeNull();
+  return textOutput(page, '', location.column, location.row);
+}
+
+/** A resize clears xterm's hover; it returns only when the pointer enters another cell. */
+async function hoverFromElsewhere(page, point) {
+  const rows = await page.evaluate(() => testCells[0].terminal.rows);
+  const empty = await textOutput(page, '', 0, rows - 1);
+  await page.mouse.move(empty.x, empty.y);
+  await page.mouse.move(point.x, point.y);
+}
+
+async function expectOpens(page, fragments, uri) {
+  await page.evaluate(() => { messages.length = 0; });
+  for (const fragment of fragments) {
+    const point = await locate(page, fragment);
+    await hoverFromElsewhere(page, point);
+    await expect(page.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/);
+    await page.mouse.click(point.x, point.y);
+  }
+  await expect.poll(() => page.evaluate(() => messages.filter(m => m.type === 'openExternal')))
+    .toEqual(fragments.map(() => ({ type: 'openExternal', uri })));
+}
+
+async function expectPlainText(page, fragment) {
+  const point = await locate(page, fragment);
+  await hoverFromElsewhere(page, point);
+  await expect(page.locator('.xterm-screen')).not.toHaveClass(/xterm-cursor-pointer/);
+}
+
+const lineup = 'assets/style-studies/parody-cat-outfits-20261003/lineup-front-v2.jpg';
+
+test('a reflowed path keeps one target and underline without its attached Korean particle', async ({ page }) => {
+  await writeAt(page, 100, `● 세 가지를 모두 고쳐 2차 열두 장을 새로 그렸습니다. 한눈에 보려면\r\n  ${lineup}를 열면 됩니다.\r\n`);
+  await expectOpens(page, ['assets/', 'v2.jpg'], lineup);
+  await expectPlainText(page, '를 열면');
+  // Narrowing reflows the remainder of the path onto the next row.
+  await resize(page, 68);
+  await expectOpens(page, ['assets/', 'pg를'], lineup);
+  await expectPlainText(page, '를 열면');
+  const point = await locate(page, 'assets/');
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/);
+  const range = await page.evaluate(() => testCells[0].terminal._core.linkifier.currentLink.link.range);
+  expect(range).toEqual({ start: { x: 3, y: range.start.y }, end: { x: 2, y: range.start.y + 1 } });
+  await resize(page, 100);
+  await expectOpens(page, ['assets/', 'v2.jpg'], lineup);
+});
+
+for (const [kind, cols, indent] of [['indented', 68, '  '], ['unindented', 66, '']]) {
+  test(`a path split at the row edge continues onto an ${kind} row with a Korean particle`, async ({ page }) => {
+    await writeAt(page, cols, `${indent}${lineup.slice(0, 66)}\r\n${indent}${lineup.slice(66)}를 열면 됩니다.`);
+    await expectOpens(page, ['assets/', 'pg를'], lineup);
+  });
+}
+
+test('an English word with a Korean particle after a short path at the edge stays separate', async ({ page }) => {
+  await writeAt(page, 68, `${'x'.repeat(52)} src/config.ts\r\n  API를 호출합니다.`);
+  await expectOpens(page, ['src/config.ts'], 'src/config.ts');
+  await expectPlainText(page, 'API를');
+});
+
+test('several paths with Korean particles on one row open separately', async ({ page }) => {
+  await writeAt(page, 80, 'bevy/README.md와 docs/HANDOFF.md에 기록했습니다.');
+  await expectOpens(page, ['README'], 'bevy/README.md');
+  await expectOpens(page, ['HANDOFF'], 'docs/HANDOFF.md');
+  await expectPlainText(page, '와 docs');
 });
 
 for (const text of ['docs/first.html\r\n  docs/second.html', '(docs/first.html)\r\n  second.html',
