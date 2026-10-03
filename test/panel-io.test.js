@@ -43,13 +43,35 @@ function fixture(t) {
   } };
 }
 
-test('actual panel delivers concurrent text plus Enter atomically through the PTY writer', async t => {
+test('actual panel delivers concurrent requests in order, each text followed by its own Enter', async t => {
   const { p, writes } = fixture(t);
   p._insideLlm[0] = true;
   const results = await Promise.all([p.deliverToCell(0, 'ABC', true), p.deliverToCell(0, 'xyz', true)]);
   assert.equal(writes.join(''), 'ABC\rxyz\r');
   assert.ok(results.every(result => result.delivery === 'delivered' && result.submitted));
   assert.equal(p._userInputVersion[0], 2);
+});
+
+test('Enter is sent alone after the application has drawn the text, not as a pasted newline', async t => {
+  const { p, pty } = fixture(t);
+  p._insideLlm[0] = true;
+  const calls = [];
+  const writeAsync = pty.writeAsync;
+  pty.writeAsync = data => { calls.push({ data, at: Date.now() }); return writeAsync(data); };
+  // The CLI keeps redrawing for a while after receiving the text.
+  const echoes = [60, 120, 180, 240].map(delay => setTimeout(() => { p._lastByteTs[0] = Date.now(); }, delay));
+  t.after(() => echoes.forEach(clearTimeout));
+  const result = await p.deliverToCell(0, '/quit', true);
+  assert.equal(result.submitted, true);
+  assert.deepEqual(calls.map(call => call.data), ['/quit', '\r']);
+  // Codex reads an Enter within ~100 ms of the text as a newline; this one waits for the echo to stop.
+  assert.ok(calls[1].at - calls[0].at >= 240 + 150 - 10, `Enter after ${calls[1].at - calls[0].at} ms`);
+  // An Enter without text needs no wait.
+  calls.length = 0;
+  const started = Date.now();
+  await p.deliverToCell(0, '', true);
+  assert.deepEqual(calls.map(call => call.data), ['\r']);
+  assert.ok(Date.now() - started < 100);
 });
 
 test('actual panel refuses dead cells and reports writer failure instead of success', async t => {

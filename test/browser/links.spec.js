@@ -334,6 +334,192 @@ test('an English word with a Korean particle after a short path at the edge stay
   await expectPlainText(page, 'API를');
 });
 
+for (const [text, fragment] of [
+  ['› /quit', 'quit'],
+  ['Tip: Use /permissions to pre-approve tools', 'permissions'],
+  ['\\x1b[200~…\\x1b[201~ 같은 제어 문자열', '200~'],
+  ['\\x1b[200~…\\x1b[201~ 같은 제어 문자열', '201~'],
+  ['escape \\n or \\x1b in code', 'x1b'],
+  ['assets/style-studies/codex-brief-v2.… 잘린 경로', 'codex-brief'],
+  ['1/2 or 24/7 on 2026/10/03', '24/7'],
+  ['1/2 or 24/7 on 2026/10/03', '2026/10'],
+  ['원화의 0.99~1.01배입니다.', '1.01'],
+  ['v0.7.3 릴리스, 평점 5.0/5', '0.7.3'],
+  ['v0.7.3 릴리스, 평점 5.0/5', '5.0/5'],
+]) {
+  test(`non-path text ${JSON.stringify(text)} is not clickable at ${fragment}`, async ({ page }) => {
+    await writeAt(page, 80, text);
+    await expectPlainText(page, fragment);
+  });
+}
+
+for (const [text, fragment, uri] of [
+  ['/home/user/project/notes', 'project', '/home/user/project/notes'],
+  ['see /README.md', 'README', '/README.md'],
+  ['run .\\scripts now', 'scripts', '.\\scripts'],
+  ['logs/2026/10/03.txt', '2026', 'logs/2026/10/03.txt'],
+]) {
+  test(`path text ${JSON.stringify(text)} stays clickable`, async ({ page }) => {
+    await writeAt(page, 80, text);
+    await expectOpens(page, [fragment], uri);
+  });
+}
+
+test('a path split right before a separator continues onto the next indented row', async ({ page }) => {
+  // Claude Code hard-wraps at the row edge, here just before "\@xterm".
+  await writeAt(page, 47, '  - 긴 경로 G:\\repos\\terminal-grid\\node_modules\r\n  \\@xterm\\xterm\\src\\browser\\Linkifier.ts를\r\n  봅니다');
+  await expectOpens(page, ['terminal-grid', 'Linkifier'], 'G:\\repos\\terminal-grid\\node_modules\\@xterm\\xterm\\src\\browser\\Linkifier.ts');
+});
+
+test('a short path ending near the edge does not absorb a following separator-led row', async ({ page }) => {
+  await writeAt(page, 47, `${'x'.repeat(37)} C:\\temp\\a\r\n  \\server note`);
+  await expectOpens(page, ['temp'], 'C:\\temp\\a');
+  await expectPlainText(page, 'server');
+});
+
+for (const [kind, text, fragments, uri] of [
+  ['path after a hyphen', `  • 절대경로 G:\\repos\\terminal-${' '.repeat(16)}\r\n    grid\\package.json`,
+    ['repos', 'package'], 'G:\\repos\\terminal-grid\\package.json'],
+  ['URL after a slash', `  • 웹 https://github.com/koenma-studio/${' '.repeat(7)}\r\n    terminal-grid를 참고`,
+    ['github', 'terminal'], 'https://github.com/koenma-studio/terminal-grid'],
+]) {
+  test(`a Codex ${kind} wrapped before a segment that did not fit continues past the row padding`, async ({ page }) => {
+    await writeAt(page, 47, text);
+    await expectOpens(page, fragments, uri);
+  });
+}
+
+test('a folder list wrapped after a slash keeps separate folders', async ({ page }) => {
+  await writeAt(page, 47, `  • 폴더 src/webview/ docs/references/${' '.repeat(9)}\r\n    scripts/ out/`);
+  await expectOpens(page, ['references'], 'docs/references/');
+  await expectOpens(page, ['scripts'], 'scripts/');
+});
+
+// Rows as a CLI drew them at `width` columns: it pads each row with spaces and never redraws
+// them after the cell is resized, so the CLI's row edge differs from the current one.
+const cells = text => [...text].reduce((width, ch) => width + (/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/.test(ch) ? 2 : 1), 0);
+const drawn = (width, rows) => rows.map(row => row + ' '.repeat(Math.max(0, width - cells(row)))).join('\r\n');
+const linkifierPath = 'G:\\repos\\terminal-grid\\node_modules\\@xterm\\xterm\\src\\browser\\Linkifier.ts';
+for (const [cli, width, rows, fragments] of [
+  ['Claude', 32, ['● 경로 목록입니다. 아래 긴 경로를', '  눌러서 확인해 주세요. 여러 줄로', '  - 긴 경로 G:\\repos\\terminal-gr', '  id\\node_modules\\@xterm\\xterm\\s',
+    '  rc\\browser\\Linkifier.ts를', '  봅니다'], ['repos', 'node_modules', 'Linkifier']],
+  ['Codex', 47, ['› 링크 인식 테스트용입니다. 도구는 쓰지 말고,', '  아래 두 목록을 한 글자도 바꾸지 말고 그대로',
+    '  - 긴 경로 G:\\repos\\terminal-', '  grid\\node_modules\\@xterm\\xterm\\src\\browser\\L', '  inkifier.ts를 봅니다',
+    '  - 웹 https://github.com/koenma-studio/'], ['terminal-', 'node_modules', 'inkifier']],
+]) {
+  for (const resized of [width, width + 20, width - 7]) {
+    test(`a ${cli} path over three rows drawn at ${width} columns opens from every row at ${resized} columns`, async ({ page }) => {
+      await writeAt(page, width, drawn(width, rows));
+      if (resized !== width) await resize(page, resized);
+      await expectOpens(page, fragments, linkifierPath);
+    });
+  }
+}
+
+/** Wrap `prefix + path + suffix` like a CLI at `width` columns with a two-space indent. Words break at
+ *  spaces (Codex also after "-" and "/"); a word longer than a row splits at its edge as wrap-ansi does. */
+function wrapLikeCli(prefix, path, suffix, width, codex) {
+  const text = prefix + path + suffix, pathStart = prefix.length, pathEnd = pathStart + path.length, content = width - 2;
+  const tokens = [];
+  for (let i = 0; i < text.length;) {
+    if (text[i] === ' ') { i++; continue; }
+    let j = i + 1;
+    while (j < text.length && text[j] !== ' ' && !(codex && /[-/]/.test(text[j - 1]))) j++;
+    tokens.push({ start: i, end: j, space: i > 0 && text[i - 1] === ' ' });
+    i = j;
+  }
+  const rows = [[]];
+  let used = 0;
+  for (const token of tokens) {
+    const width = cells(text.slice(token.start, token.end)), gap = used > 0 && token.space ? 1 : 0;
+    if (used + gap + width <= content) { rows.at(-1).push([token.start - gap, token.end]); used += gap + width; continue; }
+    if (width <= content) { rows.push([[token.start, token.end]]); used = width; continue; }
+    const remaining = content - used - gap;
+    if (remaining <= 0 || Math.floor((width - 1) / content) < 1 + Math.floor((width - remaining - 1) / content)) { rows.push([]); used = 0; }
+    else if (gap) { rows.at(-1).push([token.start - 1, token.start]); used += 1; }
+    for (let at = token.start; at < token.end;) {
+      let take = 0, taken = 0;
+      while (at + take < token.end && taken + cells(text[at + take]) <= content - used) taken += cells(text[at + take++]);
+      rows.at(-1).push([at, at + take]);
+      at += take; used += taken;
+      if (at < token.end) { rows.push([]); used = 0; }
+    }
+  }
+  // `offset` is the cell column (0-based) of the first path character on the row, or -1.
+  return rows.map(ranges => {
+    let row = '', offset = -1;
+    for (const [from, to] of ranges) {
+      if (offset < 0 && from < pathEnd && to > pathStart) offset = 2 + cells(row + text.slice(from, Math.max(from, pathStart)));
+      row += text.slice(from, to);
+    }
+    return { text: '  ' + row, offset };
+  });
+}
+
+for (const [cli, codex] of [['Claude', false], ['Codex', true]]) {
+  test(`a long ${cli}-wrapped path opens from every row at every drawn width, before and after a resize`, async ({ page }) => {
+    test.setTimeout(120000);
+    const failures = [];
+    for (let width = 28; width <= 72; width++) {
+      const rows = [...wrapLikeCli('- 경로 목록을 출력합니다. 아래 긴 경로를 눌러 확인해 주세요. ', '', '', width, codex),
+        ...wrapLikeCli('- 긴 경로 ', linkifierPath, '를 봅니다', width, codex)];
+      failures.push(...await page.evaluate(async ({ rows, width, uri, padded }) => {
+        const t = testCells[0].terminal, found = [];
+        testCells[0].viewport.fit = () => {};
+        const provider = t._core._linkProviderService.linkProviders[1];
+        for (const cols of [width, width + 15, width - 8]) {
+          t.reset();
+          t.resize(width, t.rows);
+          await new Promise(resolve => t.write(padded.join('\r\n'), resolve));
+          if (cols !== width) t.resize(cols, t.rows);
+          const buffer = t.buffer.active, starts = [];
+          for (let row = 0; row < buffer.length; row++) if (!buffer.getLine(row).isWrapped) starts.push(row);
+          rows.forEach((row, index) => {
+            if (row.offset < 0) return;
+            const y = starts[index] + Math.floor(row.offset / cols) + 1, x = row.offset % cols + 1;
+            let links = [];
+            provider.provideLinks(y, result => { links = result || []; });
+            const inside = range => (range.start.y < y || (range.start.y === y && range.start.x <= x)) && (range.end.y > y || (range.end.y === y && range.end.x >= x));
+            if (!links.some(link => link.text === uri && inside(link.range))) found.push(`${width}→${cols} row ${index} "${row.text}": ${JSON.stringify(links.map(link => link.text))}`);
+          });
+        }
+        return found;
+      }, { rows, width, uri: linkifierPath, padded: rows.map(row => row.text + ' '.repeat(Math.max(0, width - cells(row.text)))) }));
+    }
+    expect(failures).toEqual([]);
+  });
+}
+
+// Rows read back from a 77-column grid. The CLI responses lost "\" before "@" to Markdown,
+// so they name a missing path that the host repairs; the prompt echo kept it.
+for (const [kind, rows, fragments, uri] of [
+  ['Claude prompt echo', ['  - 긴 경로 G:\\repos\\terminal-grid\\node_modules\\@xterm\\xterm\\src\\browser\\Lin ', '  kifier.ts를 봅니다'],
+    ['node_modules', 'kifier'], linkifierPath],
+  ['Claude response', ['  - 긴 경로 G:\\repos\\terminal-grid\\node_modules@xterm\\xterm\\src\\browser\\Linki', '    fier.ts를 봅니다'],
+    ['node_modules', 'fier.ts'], linkifierPath.replace('\\@', '@')],
+  ['Codex response', ['  • 긴 경로 G:\\repos\\terminal-', '    grid\\node_modules@xterm\\xterm\\src\\browser\\Linkifier.ts를 봅니다'],
+    ['repos', 'Linkifier'], linkifierPath.replace('\\@', '@')],
+]) {
+  test(`the two-row path in the ${kind} from a 77-column grid opens from both rows`, async ({ page }) => {
+    await writeAt(page, 77, rows.join('\r\n'));
+    await expectOpens(page, fragments, uri);
+  });
+}
+
+test('a link click in an application with mouse reporting opens once and is not reported to it', async ({ page }) => {
+  const target = 'https://github.com/koenma-studio/terminal-grid%EB%A5%BC';
+  // Codex enables any-event SGR mouse reporting and linkifies URLs itself.
+  await writeAt(page, 80, `\x1b[?1003h\x1b[?1006h\x1b]8;;${target}\x1b\\terminal-grid를\x1b]8;;\x1b\\ 참고\r\nplain text`);
+  const reports = () => page.evaluate(() => messages.filter(m => m.type === 'input' && /\x1b\[<0;/.test(m.data)).length);
+  await expectOpens(page, ['terminal-grid'], target);
+  await page.waitForTimeout(100);
+  expect(await reports()).toBe(0);
+  // Clicks elsewhere still reach the application.
+  const point = await locate(page, 'plain');
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(reports).toBeGreaterThan(0);
+});
+
 test('several paths with Korean particles on one row open separately', async ({ page }) => {
   await writeAt(page, 80, 'bevy/README.md와 docs/HANDOFF.md에 기록했습니다.');
   await expectOpens(page, ['README'], 'bevy/README.md');

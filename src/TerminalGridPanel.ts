@@ -3,7 +3,7 @@ import * as os from "os";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { parseTerminalLink, withoutKoreanParticle } from "./TerminalLink";
+import { parseTerminalLink, webTargetWithoutProse, withoutKoreanParticle } from "./TerminalLink";
 import { BUILTIN_THEMES, resolveThemeColors } from "./themes";
 import { panelRegistry, TabIdAllocator } from "./PanelRegistry";
 import { tabState } from "./TabStateStore";
@@ -46,6 +46,35 @@ function initialWorkingDirectory(): string {
     || process.env.USERPROFILE || process.env.HOME || ".";
 }
 
+/** Markdown in CLI output drops a backslash before punctuation (`node_modules\@xterm` → `node_modules@xterm`,
+ *  `USER\.claude` → `USER.claude`). Rebuild a missing Windows path from the folders that exist. */
+async function restoreDroppedBackslashes(target: string): Promise<string | undefined> {
+  const root = /^(?:[a-z]:\\|\\\\[^\\]+\\[^\\]+\\)/i.exec(target)?.[0];
+  if (process.platform !== "win32" || !root) return;
+  let checks = 64;
+  const exists = async (candidate: string): Promise<boolean> => {
+    if (checks-- <= 0) return false;
+    try { await fs.promises.stat(candidate); return true; } catch { return false; }
+  };
+  const walk = async (base: string, segments: string[]): Promise<string | undefined> => {
+    if (!segments.length) return base;
+    const [segment, ...rest] = segments;
+    if (await exists(base + segment)) {
+      const found = await walk(base + segment + (rest.length ? "\\" : ""), rest);
+      if (found) return found;
+    }
+    // Punctuation inside the segment may have followed the dropped separator.
+    for (let index = 1; index < segment.length; index++) {
+      if (!/[!-/:-@[-`{-~]/.test(segment[index]) || !await exists(base + segment.slice(0, index))) continue;
+      const found = await walk(base + segment.slice(0, index) + "\\", [segment.slice(index), ...rest]);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const restored = await walk(root, target.slice(root.length).split("\\").filter(Boolean));
+  return restored !== target ? restored : undefined;
+}
+
 function stepsDelay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -77,6 +106,9 @@ function isLlmCommand(input: string): boolean {
 const POLL_MS = 150;
 const SETTLE_CAP_MS = 2500;
 const QUIET_MS = process.platform === "win32" ? 450 : 300;
+// Codex reads an Enter within about 100 ms of typed or pasted text as a newline.
+const INPUT_SETTLE_MS = 150;
+const INPUT_SETTLE_CAP_MS = 2000;
 // Auto-accept applies only to recognized trust dialogs on the rendered screen.
 const llmEnter = (csiU: boolean): string => (csiU ? LLM_ENTER : "\r");
 const MODAL_RULES: { test: RegExp; accept: (csiU: boolean) => string }[] = [
@@ -477,12 +509,32 @@ export class TerminalGridPanel {
       assertActive();
       if (this._terminals[cellId]?.pty !== pty || pty.status?.state === "exited") throw new Error("Cell process changed");
       this._userInputVersion[cellId] = (this._userInputVersion[cellId] || 0) + 1;
-      const packet = buildCellInput(text, { submit, bracketedPaste: this._bracketedPaste[cellId] || false, enter: this._enterSeq(cellId) });
-      if (pty.writeAsync) await pty.writeAsync(packet); else pty.write(packet);
-      assertActive();
+      const write = async (data: string): Promise<void> => {
+        if (pty.writeAsync) await pty.writeAsync(data); else pty.write(data);
+        assertActive();
+      };
+      const packet = buildCellInput(text, { submit, bracketedPaste: this._bracketedPaste[cellId] || false });
+      if (packet) await write(packet);
+      if (submit) {
+        // CLIs such as Codex read an Enter that arrives with, or just after, typed or pasted
+        // text as a newline. Send it alone once the application has drawn the text.
+        if (packet) { await this._awaitInputDrawn(cellId); assertActive(); }
+        await write(this._enterSeq(cellId));
+      }
       if (submit && isLlmCommand(text)) this._insideLlm[cellId] = true;
       if (submit && text.trim() === "exit") this._insideLlm[cellId] = false;
     });
+  }
+
+  /** Wait for a minimum gap and for the application's echo to go quiet, bounded for animated screens. */
+  private async _awaitInputDrawn(cellId: number): Promise<void> {
+    const start = Date.now();
+    while (!this._disposed) {
+      const now = Date.now();
+      const quiet = now - Math.max(start, this._lastByteTs[cellId] || 0);
+      if ((now - start >= INPUT_SETTLE_MS && quiet >= INPUT_SETTLE_MS) || now - start >= INPUT_SETTLE_CAP_MS) return;
+      await stepsDelay(25);
+    }
   }
 
   public async readCellSnapshot(cellId: number, options: CellReadOptions = {}): Promise<CellReadResult | null> {
@@ -861,7 +913,7 @@ export class TerminalGridPanel {
     if (!target) return;
     try {
       if (target.kind === "web") {
-        if (!await vscode.env.openExternal(vscode.Uri.parse(target.uri, true))) throw new Error("Browser unavailable");
+        if (!await vscode.env.openExternal(vscode.Uri.parse(webTargetWithoutProse(target.uri), true))) throw new Error("Browser unavailable");
         return;
       }
       // A remote host's file paths must not be opened on the local UI machine.
@@ -898,6 +950,8 @@ export class TerminalGridPanel {
           failure ??= error;
         }
       }
+      const restored = stat ? undefined : await restoreDroppedBackslashes(withoutLine);
+      if (restored) { stat = await fs.promises.stat(restored); localPath = restored; }
       if (!stat) throw failure;
       const uri = vscode.Uri.file(localPath);
       if (stat.isDirectory()) {

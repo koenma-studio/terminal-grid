@@ -58,10 +58,12 @@ test('write failures are reported, and a bounded input queue rejects overload', 
 });
 
 test('negotiated paste preserves multiline text in one packet and leaves raw control input intact', () => {
-  assert.equal(buildCellInput('한글😀\nsecond', { submit: true, bracketedPaste: true, enter: '\x1b[13u' }), '\x1b[200~한글😀\rsecond\x1b[201~\x1b[13u');
-  assert.equal(buildCellInput('\x03', { submit: false, bracketedPaste: true, enter: '\r' }), '\x03');
-  assert.equal(buildCellInput('hello', { submit: true, bracketedPaste: false, enter: '\r' }), 'hello\r');
-  assert.throws(() => buildCellInput('first\nsecond', { submit: true, bracketedPaste: false, enter: '\r' }), /not enabled bracketed paste/);
+  // Enter is never part of the packet; the panel sends it once the application has drawn the text.
+  assert.equal(buildCellInput('한글😀\nsecond', { submit: true, bracketedPaste: true }), '\x1b[200~한글😀\rsecond\x1b[201~');
+  assert.equal(buildCellInput('\x03', { submit: false, bracketedPaste: true }), '\x03');
+  assert.equal(buildCellInput('hello', { submit: true, bracketedPaste: false }), 'hello');
+  assert.equal(buildCellInput('', { submit: true, bracketedPaste: true }), '');
+  assert.throws(() => buildCellInput('first\nsecond', { submit: true, bracketedPaste: false }), /not enabled bracketed paste/);
 });
 
 test('read metadata distinguishes full screen, selected line ranges and truncated history', () => {

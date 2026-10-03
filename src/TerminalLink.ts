@@ -46,6 +46,21 @@ export function withoutAttachedProse(text: string): string {
   return korean && (/[\\/]$/.test(korean[1]) ? ONE_PARTICLE : PARTICLES).test(korean[2]) ? korean[1] : text;
 }
 
+/** CLIs that linkify `…/terminal-grid를` include the particle in the hyperlink; open the address without it. */
+export function webTargetWithoutProse(href: string): string {
+  try {
+    const url = new URL(href);
+    if (url.search || url.hash) return href;
+    const path = decodeURIComponent(url.pathname);
+    const trimmed = withoutAttachedProse(path);
+    if (trimmed === path) return href;
+    url.pathname = trimmed;
+    return url.href;
+  } catch {
+    return href;
+  }
+}
+
 /** Shorter names for a missing Korean name with an attached particle: `자료를` → `자료`. */
 export function withoutKoreanParticle(path: string): string[] {
   const names: string[] = [];

@@ -98,18 +98,16 @@ export class CellCommandQueue {
   }
 }
 
-/** Send an entire paste packet in one writer operation so other input cannot split it. */
-export function buildCellInput(text: string, options: { submit: boolean; bracketedPaste: boolean; enter: string }): string {
+/** Text for one writer operation so other input cannot split it. Enter is sent separately. */
+export function buildCellInput(text: string, options: { submit: boolean; bracketedPaste: boolean }): string {
   // Bracketed paste applies only to text. Raw control input (Ctrl+C, arrows, etc.) retains its meaning.
   const plainText = !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text);
-  let data = text;
-  if (options.bracketedPaste && plainText && text) {
-    data = "\x1b[200~" + text.replace(/\r\n|\n/g, "\r") + "\x1b[201~";
-  } else if (options.submit && /[\r\n]/.test(text)) {
-    // Without negotiated paste, a newline may execute half a command before its remainder.
+  if (options.bracketedPaste && plainText && text) return "\x1b[200~" + text.replace(/\r\n|\n/g, "\r") + "\x1b[201~";
+  // Without negotiated paste, a newline may execute half a command before its remainder.
+  if (options.submit && /[\r\n]/.test(text)) {
     throw new Error("This cell has not enabled bracketed paste. Send one line at a time or paste through its terminal UI.");
   }
-  return data + (options.submit ? options.enter : "");
+  return text;
 }
 
 export function formatCellRead(input: {

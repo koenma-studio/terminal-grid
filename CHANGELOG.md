@@ -1,6 +1,17 @@
 # Changelog
 
+## [0.7.4] - 2026-10-03
+
+### Fixed
+- MCP `send_to_cell` and broadcasts with `submit: true` now submit in Codex and in long Claude Code inputs. Enter is sent on its own once the CLI has drawn the text, instead of arriving with it and being read as a pasted newline.
+- Long paths split across rows open from every row at any cell width, including after a cell is resized: Claude Code splits right before a separator (`…\node_modules` + `\@xterm\…`), and Codex wraps after `-` or `/`.
+- A Windows path whose backslash before punctuation was removed by a CLI's Markdown rendering, such as `node_modules@xterm` or `USER.claude`, opens the existing `node_modules\@xterm` or `USER\.claude` path.
+- In applications that capture the mouse, such as Codex, a click on a link opens it once instead of also being handled by the application. Other clicks still reach the application. Web links that a CLI extended over a Korean particle (`…/terminal-grid를`) open without it.
+- Slash commands (`/quit`, `/permissions`), escape sequences (`\x1b[200~`), paths truncated with `…`, numbers, versions and dates are no longer clickable.
+
 ## [0.7.3] - 2026-10-03
+
+Released on GitHub only; its changes reach the marketplaces in 0.7.4.
 
 ### Fixed
 - Paths and URLs followed directly by Korean text or a note now open the intended target: `assets/front.jpg를`, `docs/HANDOFF.md에`, `captures/hud-tour/에`, `front.png(정면)`, `(docs/index.html)인지`. If a Korean file or folder name with an attached particle does not exist, such as `docs/자료를`, the existing `docs/자료` opens instead.

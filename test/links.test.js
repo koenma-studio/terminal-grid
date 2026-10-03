@@ -62,6 +62,19 @@ test('actual panel opens HTTP(S) links, preserving encoded query and fragment', 
   assert.deepEqual(warnings, []);
 });
 
+test('a hyperlink that a CLI extended over a Korean particle opens without it', async () => {
+  const receive = receiver();
+  for (const uri of ['https://github.com/koenma-studio/terminal-grid%EB%A5%BC', 'https://github.com/koenma-studio/terminal-grid를',
+    'https://example.com/docs/guide.html%EC%97%90%EC%84%9C',
+    // Korean page names and query values belong to the address.
+    'https://ko.wikipedia.org/wiki/%EA%B3%A0%EC%96%91%EC%9D%B4', 'https://example.com/search?q=%EA%B0%92%EC%9D%84']) {
+    await receive({ type: 'openExternal', uri });
+  }
+  assert.deepEqual(opened, ['https://github.com/koenma-studio/terminal-grid', 'https://github.com/koenma-studio/terminal-grid',
+    'https://example.com/docs/guide.html', 'https://ko.wikipedia.org/wiki/%EA%B3%A0%EC%96%91%EC%9D%B4',
+    'https://example.com/search?q=%EA%B0%92%EC%9D%84']);
+});
+
 test('actual panel rejects malformed URLs and executable schemes', async () => {
   const receive = receiver();
   for (const uri of [null, {}, 123, '', 'not a URL', 'https://', 'https://[invalid',
@@ -168,6 +181,19 @@ test('literal hash filenames take precedence over line-reference suffixes', asyn
   await receive({ type: 'openExternal', uri: path.basename(file) });
   assert.deepEqual(revealed, [{ command: 'revealFileInOS', uri: pathToFileURL(file).href }]);
   assert.deepEqual(warnings, []);
+});
+
+test('a Windows path whose backslash before punctuation Markdown dropped opens the existing file', { skip: process.platform !== 'win32' }, async t => {
+  const { directory } = localFiles(t), receive = receiver(directory);
+  const linkifier = path.join(directory, 'node_modules', '@xterm', 'xterm', 'Linkifier.ts');
+  const settings = path.join(directory, 'USER', '.claude', 'settings.json');
+  for (const file of [linkifier, settings]) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, 'test'); }
+  for (const target of [`${directory}\\node_modules@xterm\\xterm\\Linkifier.ts`, `${directory}\\USER.claude\\settings.json:3`,
+    'node_modules@xterm\\xterm\\Linkifier.ts', `${directory}\\node_modules@xterm\\missing.ts`]) {
+    await receive({ type: 'openExternal', uri: target });
+  }
+  assert.deepEqual(revealed, [linkifier, settings, linkifier].map(file => ({ command: 'revealFileInOS', uri: pathToFileURL(file).href })));
+  assert.deepEqual(warnings, ['Could not show the local path in your file explorer.']);
 });
 
 test('Korean particles after an existing Korean name are removed only when the literal path is missing', async t => {
