@@ -44,19 +44,27 @@ jobs:
           files=(release/*.vsix)
           [ ${#files[@]} -eq 1 ] || { echo "::error::Expected one .vsix asset on $TAG, found ${#files[@]}"; exit 1; }
           vsix=${files[0]}
-          version=$(unzip -p "$vsix" extension/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          manifest=$(unzip -p "$vsix" extension/package.json)
+          version=$(node -p 'JSON.parse(process.argv[1]).version' "$manifest")
+          extension=$(node -p 'const m = JSON.parse(process.argv[1]); `${m.publisher}.${m.name}`' "$manifest")
           [ "v$version" = "$TAG" ] || { echo "::error::$vsix contains version $version, not $TAG"; exit 1; }
           listing=$(unzip -l "$vsix")
           for platform in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64; do
             grep -q "extension/node_modules/node-pty/prebuilds/$platform/pty.node" <<< "$listing" \
               || { echo "::error::$vsix lacks the node-pty $platform prebuild"; exit 1; }
           done
-          echo "VSIX=$vsix" >> "$GITHUB_ENV"
+          printf 'VSIX=%s\nVERSION=%s\nEXTENSION=%s\n' "$vsix" "$version" "$extension" >> "$GITHUB_ENV"
 
-      # Each registry is attempted even if the other fails; --skip-duplicate makes reruns safe.
+      # Each registry is attempted even if the other fails. A version already uploaded by hand
+      # is skipped before authentication, so a release for it succeeds without credentials.
       - name: Publish to Open VSX
         if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
-        run: npx --yes ovsx@1.2.0 publish "$VSIX" --trusted-publishing --skip-duplicate
+        run: |
+          if curl -fsS -o /dev/null "https://open-vsx.org/api/${EXTENSION/.//}/$VERSION"; then
+            echo "::notice::Open VSX already has $EXTENSION $VERSION."
+          else
+            npx --yes ovsx@1.2.0 publish "$VSIX" --trusted-publishing --skip-duplicate
+          fi
 
       - name: Publish to the VS Code Marketplace
         if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
@@ -65,7 +73,10 @@ jobs:
         # Global Azure DevOps PATs stop working on 2026-12-01. Without the secret,
         # this uses the repository's Marketplace trusted publishing policy instead.
         run: |
-          if [ -n "$VSCE_PAT" ]; then
+          if npx --yes @vscode/vsce@4.0.0 show "$EXTENSION" --json \
+            | node -e 'let s = ""; process.stdin.on("data", d => s += d).on("end", () => process.exit(JSON.parse(s).versions.some(v => v.version === process.argv[1]) ? 0 : 1))' "$VERSION"; then
+            echo "::notice::The Marketplace already has $EXTENSION $VERSION."
+          elif [ -n "$VSCE_PAT" ]; then
             npx --yes @vscode/vsce@4.0.0 publish --packagePath "$VSIX" --skip-duplicate
           elif ! npx --yes @vscode/vsce@4.0.0 publish --oidc --packagePath "$VSIX" --skip-duplicate; then
             echo "::error::Not published to the Marketplace: add the VSCE_PAT secret and rerun, or upload the release VSIX at https://marketplace.visualstudio.com/manage/publishers/koenma"
