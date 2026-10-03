@@ -1,0 +1,69 @@
+name: Publish
+
+# npm run release builds and tests the VSIX locally (it bundles a Linux node-pty
+# prebuild that npm does not ship) and attaches it to a GitHub release. This
+# workflow publishes that exact file to Open VSX and the VS Code Marketplace.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose VSIX to publish, e.g. v0.7.3
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Trusted publishing: Open VSX now, the Marketplace once it accepts --oidc policies.
+      id-token: write
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the release VSIX
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.vsix' --dir release
+
+      - name: Verify the VSIX
+        id: verify
+        run: |
+          shopt -s nullglob
+          files=(release/*.vsix)
+          [ ${#files[@]} -eq 1 ] || { echo "::error::Expected one .vsix asset on $TAG, found ${#files[@]}"; exit 1; }
+          vsix=${files[0]}
+          version=$(unzip -p "$vsix" extension/package.json | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version')
+          [ "v$version" = "$TAG" ] || { echo "::error::$vsix contains version $version, not $TAG"; exit 1; }
+          listing=$(unzip -l "$vsix")
+          for platform in win32-x64 win32-arm64 darwin-x64 darwin-arm64 linux-x64; do
+            grep -q "extension/node_modules/node-pty/prebuilds/$platform/pty.node" <<< "$listing" \
+              || { echo "::error::$vsix lacks the node-pty $platform prebuild"; exit 1; }
+          done
+          echo "VSIX=$vsix" >> "$GITHUB_ENV"
+
+      # Each registry is attempted even if the other fails; --skip-duplicate makes reruns safe.
+      - name: Publish to Open VSX
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        run: npx --yes ovsx@1.2.0 publish "$VSIX" --trusted-publishing --skip-duplicate
+
+      - name: Publish to the VS Code Marketplace
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        # Global Azure DevOps PATs stop working on 2026-12-01. Without the secret,
+        # this uses the repository's Marketplace trusted publishing policy instead.
+        run: |
+          if [ -n "$VSCE_PAT" ]; then auth=(); else auth=(--oidc); fi
+          npx --yes @vscode/vsce@4.0.0 publish "${auth[@]}" --packagePath "$VSIX" --skip-duplicate

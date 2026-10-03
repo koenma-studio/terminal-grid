@@ -1,4 +1,5 @@
 .vscode/**
+.github/**
 .claude/**
 .codex/**
 _linux-prebuild-output/**

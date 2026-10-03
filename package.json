@@ -230,6 +230,7 @@
     "test:windows": "node scripts/check-windows.js",
     "package": "npm run compile && npx --yes @vscode/vsce package",
     "deploy": "npm run package && node scripts/install.js",
+    "release": "node scripts/release.js",
     "install:local": "npm run deploy",
     "verify:install": "node scripts/check-install.js"
   },
