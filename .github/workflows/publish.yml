@@ -30,7 +30,7 @@ jobs:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -65,5 +65,9 @@ jobs:
         # Global Azure DevOps PATs stop working on 2026-12-01. Without the secret,
         # this uses the repository's Marketplace trusted publishing policy instead.
         run: |
-          if [ -n "$VSCE_PAT" ]; then auth=(); else auth=(--oidc); fi
-          npx --yes @vscode/vsce@4.0.0 publish "${auth[@]}" --packagePath "$VSIX" --skip-duplicate
+          if [ -n "$VSCE_PAT" ]; then
+            npx --yes @vscode/vsce@4.0.0 publish --packagePath "$VSIX" --skip-duplicate
+          elif ! npx --yes @vscode/vsce@4.0.0 publish --oidc --packagePath "$VSIX" --skip-duplicate; then
+            echo "::error::Not published to the Marketplace: add the VSCE_PAT secret and rerun, or upload the release VSIX at https://marketplace.visualstudio.com/manage/publishers/koenma"
+            exit 1
+          fi
